@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::net::{TcpListener, TcpStream, Shutdown};
 
+use::common_bork::{Message, MessageType};
+
 type Result<T> = result::Result<T, ()>;
 
 const SERVER_PORT:u16=6556;
@@ -26,45 +28,6 @@ WELCOME TO BORK BORK, A PLACE
     FOR LAKEDOGS TO BORK ABOUT
 ";
 
-struct MessageType;
-impl MessageType{
-    const CHATMSG:      u8 = 0;
-    const JOIN:         u8 = 1;
-    const LEAVE:        u8 = 2;
-    const VERSION:      u8 = 3;
-    const WELCOME:      u8 = 4;
-}
-
-enum Message{
-    ChatMsg{
-        author:         Arc<TcpStream>,
-        message_type:   u8,
-        sender_id:      u16,
-        message_len:    u16,
-        message_text:   Vec<u8>,
-    },
-    Join{
-        author:         Arc<TcpStream>,
-        message_type:   u8,
-        username:       Vec<u8>,
-    },
-    Leave{
-        author:         Arc<TcpStream>,
-        message_type:   u8,
-    },
-    Version{
-        author:         Arc<TcpStream>,
-        message_type:   u8,
-        major_rev:      u8,
-        minor_rev:      u8,
-    },
-    Welcome{
-        author:         Arc<TcpStream>,
-        message_type:   u8,
-        message_len:    u16,
-        welcome_msg:    Vec<u8>,
-    }
-}
 
 #[derive(Clone)]
 struct User{
