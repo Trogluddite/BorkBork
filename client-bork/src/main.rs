@@ -57,6 +57,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<bool> {
     app.set_server(SERVER_ADDRESS, SERVER_PORT);
     loop {
+        app.read_incomming();
         terminal.draw(|frame| ui(frame, app))?;
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Release{
