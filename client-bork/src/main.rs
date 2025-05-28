@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use std::{error::Error, result, thread, io};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
@@ -17,11 +18,17 @@ use crate::{
     ui::ui,
 };
 
+const SERVER_PORT:u16 = 6556;
+const SERVER_ADDRESS:&'static str = "164.90.146.27";
+
 fn main() -> Result<(), Box<dyn Error>> {
     /* set up the terminal */
     enable_raw_mode()?;
     let mut stderr = io::stderr();  //Since Terminal defaults stderr/stdout to the same stream
-    execute!(stderr, EnterAlternateScreen);
+    match execute!(stderr, EnterAlternateScreen) {
+        Err(e) => eprintln!("Failed to enter alternate screen mode with Err: {}", e),
+        _ => ()
+    }
     let backend = CrosstermBackend::new(stderr);
     let mut terminal = Terminal::new(backend)?;
     /* end of terminal setup*/
@@ -31,7 +38,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let res = run_app(&mut terminal, &mut app);
 
     /* restore terminmal on exit */
-    disable_raw_mode();
+    match disable_raw_mode() {
+        Err(e) => eprintln!("failed to disable raw mode with Err: {}", e),
+        _ => ()
+    }
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
@@ -45,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<bool> {
+    app.set_server(SERVER_ADDRESS, SERVER_PORT);
     loop {
         terminal.draw(|frame| ui(frame, app))?;
         if let Event::Key(key) = event::read()? {

@@ -31,8 +31,8 @@ impl App{
         }
     }
 
-    pub fn set_server(&mut self, ip: String, port: u16){
-        self.server_address = ip;
+    pub fn set_server(&mut self, ip: &str, port: u16){
+        self.server_address = ip.into();
         self.server_port = port;
         let address = format!("{}:{}", self.server_address, self.server_port);
         let stream = TcpStream::connect(&address);
