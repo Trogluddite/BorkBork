@@ -32,6 +32,7 @@ pub enum Message{
         message_type:   u8,
         major_rev:      u8,
         minor_rev:      u8,
+        subminor_rev:   u8,
     },
     Welcome{
         author:         Arc<TcpStream>,

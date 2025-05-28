@@ -41,7 +41,14 @@ pub fn ui(frame: &mut Frame, app: &App){
         "Guest".cyan(),
         " | ".into(),
         "Staus: ".gray().bold(),
-        "Online".green(),
+        {if app.server_connected == true { "Online".green()} else {"Offline".red()}},
+        " | ".into(),
+        " Sever Version: ".gray().bold(),
+        app.server_major_ver.to_string().into(),
+        ".".into(),
+        app.server_minor_ver.to_string().into(),
+        ".".into(),
+        app.server_subminor_ver.to_string().into(),
     ].into();
     frame.render_widget(Paragraph::new(line).block(header_block), outer_layout[0]);
 
@@ -61,7 +68,8 @@ pub fn ui(frame: &mut Frame, app: &App){
         .border_set(border::DOUBLE);
     let recv_messages_block = Block::bordered()
         .border_set(border::EMPTY);
-    let recv_messages_text = Paragraph::new("hi hello here is some text mkay")
+    // TODO: there should be some processing of the inbuffer to format for display
+    let recv_messages_text = Paragraph::new(String::from(str::from_utf8(&app.inbuffer).unwrap()))
         .block(recv_messages_block);
     let users_block = Block::bordered()
         .title(users_title.centered())

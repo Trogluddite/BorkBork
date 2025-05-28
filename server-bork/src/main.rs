@@ -98,11 +98,12 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 println!("[ERROR]: Couldn't receive message, got error: {}", err);
             })?;
         match message{
-            Message::Version { author, message_type, major_rev, minor_rev } => {
+            Message::Version { author, message_type, major_rev, minor_rev, subminor_rev } => {
                 let mut message: Vec<u8> = Vec::new();
                 message.push(message_type);
                 message.extend(major_rev.to_le_bytes());
                 message.extend(minor_rev.to_le_bytes());
+                message.extend(subminor_rev.to_le_bytes());
                 author.as_ref().write_all(&message).map_err(|err| {
                     println!("[ERROR]: couldn't send version message to client, with error: {}", err);
                 })?;
@@ -151,7 +152,8 @@ fn handle_client(
         author: stream.clone(),
         message_type: MessageType::VERSION,
         major_rev: 0,
-        minor_rev: 1,
+        minor_rev: 0,
+        subminor_rev: 1,
     };
     message.send(server_version).map_err(|err| {
         println!("[ERROR]: Couldn't send version message to client. Err was: {}", err);

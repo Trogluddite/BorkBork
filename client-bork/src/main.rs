@@ -19,7 +19,8 @@ use crate::{
 };
 
 const SERVER_PORT:u16 = 6556;
-const SERVER_ADDRESS:&'static str = "164.90.146.27";
+//const SERVER_ADDRESS:&'static str = "164.90.146.27";
+const SERVER_ADDRESS:&'static str = "0.0.0.0";
 
 fn main() -> Result<(), Box<dyn Error>> {
     /* set up the terminal */
