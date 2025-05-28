@@ -53,17 +53,23 @@ pub fn ui(frame: &mut Frame, app: &App){
     let chat_inner_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(2),
-            Constraint::Max(2),
+            Constraint::Percentage(100),
+            Constraint::Length(3),
         ])
         .split(inner_layout[0]);
-    let message_block = Block::bordered()
+    let send_message_block = Block::bordered()
         .border_set(border::DOUBLE);
-
+    let recv_messages_block = Block::bordered()
+        .border_set(border::EMPTY);
+    let recv_messages_text = Paragraph::new("hi hello here is some text mkay")
+        .block(recv_messages_block);
     let users_block = Block::bordered()
         .title(users_title.centered())
         .border_set(border::ROUNDED);
-    frame.render_widget( message_block, chat_inner_layout[0]);
+
+    frame.render_widget( recv_messages_text, chat_inner_layout[0]);
+    frame.render_widget( send_message_block, chat_inner_layout[1]);
     frame.render_widget( chat_block,  inner_layout[0]);
     frame.render_widget( users_block, inner_layout[1]);
 }
+
