@@ -19,8 +19,7 @@ use crate::{
 };
 
 const SERVER_PORT:u16 = 6556;
-//const SERVER_ADDRESS:&'static str = "164.90.146.27";
-const SERVER_ADDRESS:&'static str = "0.0.0.0";
+const SERVER_ADDRESS:&'static str = "164.90.146.27";
 
 fn main() -> Result<(), Box<dyn Error>> {
     /* set up the terminal */
@@ -56,9 +55,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<bool> {
-    app.set_server(SERVER_ADDRESS, SERVER_PORT);
     loop {
-        app.read_incomming();
+        if app.server_connected { app.read_incomming(); }
         terminal.draw(|frame| ui(frame, app))?;
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Release{
@@ -66,11 +64,14 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 continue;
             }
             match key.code{
+                KeyCode::Char('c') => {
+                    app.connect_server(SERVER_ADDRESS, SERVER_PORT);
+                }
+                KeyCode::Char('d') => {
+                    app.disconnect();
+                }
                 KeyCode::Char('m') => {
                     app.current_screen = CurrentScreen::Main;
-                }
-                KeyCode::Char('c') => {
-                    app.current_screen = CurrentScreen::Config;
                 }
                 KeyCode::Char('q') => {
                     return Ok(true);

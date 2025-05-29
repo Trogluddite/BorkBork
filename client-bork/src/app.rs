@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 use socket2::{Socket, Domain, Type};
 
 use::common_bork::MessageType;
@@ -34,16 +34,16 @@ impl App{
             server_address: String::new(),
             server_port:    0,
             server_connected: false,
-            server_subminor_ver: SUBMINOR_VER,
-            server_minor_ver: MINOR_VER,
-            server_major_ver: MAJOR_VER,
+            server_subminor_ver: 0,
+            server_minor_ver: 0,
+            server_major_ver: 0,
             tcpstream: TcpStream::from(Socket::new(Domain::IPV4, Type::STREAM, None).unwrap()),
             inbuffer: Vec::new(),
             //outbuffer: Vec::new(),
         }
     }
 
-    pub fn set_server(&mut self, ip: &str, port: u16){
+    pub fn connect_server(&mut self, ip: &str, port: u16){
         self.server_address = ip.into();
         self.server_port = port;
         let address = format!("{}:{}", self.server_address, self.server_port);
@@ -52,6 +52,17 @@ impl App{
         });
         self.tcpstream = stream.unwrap();
         self.server_connected = true;
+    }
+
+    pub fn disconnect(&mut self){
+        match self.tcpstream.shutdown(Shutdown::Both) {
+            Err(e) => eprintln!("failed to shutdown TCPStream, with Err: {}", e),
+            _ => ()
+        };
+        self.server_major_ver = 0;
+        self.server_minor_ver = 0;
+        self.server_subminor_ver = 0;
+        self.server_connected = false;
     }
 
     pub fn switch_screen(&mut self, target: CurrentScreen){
