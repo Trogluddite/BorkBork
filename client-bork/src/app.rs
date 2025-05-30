@@ -4,13 +4,12 @@ use socket2::{Socket, Domain, Type};
 
 use::common_bork::MessageType;
 
-const SUBMINOR_VER:u8 = 1;
-const MINOR_VER:u8 = 0;
-const MAJOR_VER:u8 = 0;
+#[allow(unused)] const SUBMINOR_VER:u8 = 1;
+#[allow(unused)] const MINOR_VER:u8 = 0;
+#[allow(unused)] const MAJOR_VER:u8 = 0;
 
 pub enum CurrentScreen{
     Main,
-    Config,
 }
 
 pub struct App{
@@ -70,50 +69,57 @@ impl App{
     }
 
     pub fn read_incomming(&mut self){
-        // first byte is the message type per protocol -- read it, handle based on type
-        let mut mtype = [0u8];
-        match self.tcpstream.read_exact(&mut mtype) {
-            Err(e) => eprintln!("failed to read message type, with Err: {}", e),
-            _ => ()
-        }
-        match mtype[0] {
-            MessageType::VERSION => {
-                let mut major = [0u8];
-                let mut minor = [0u8];
-                let mut subminor = [0u8];
-                match self.tcpstream.read_exact(&mut major) {
-                    Err(e) => eprintln!("Failed to read major version with Err: {}", e),
-                    _ => ()
-                }
-                match self.tcpstream.read_exact(&mut minor) {
-                    Err(e) => eprintln!("Failed to read minor version with Err: {}", e),
-                    _ => ()
-                }
-                match self.tcpstream.read_exact(&mut subminor) {
-                    Err(e) => eprintln!("Failed to read subminor version with Err: {}", e),
-                    _ => ()
-                }
-                self.server_major_ver = u8::from_le_bytes(major);
-                self.server_minor_ver = u8::from_le_bytes(minor);
-                self.server_subminor_ver = u8::from_le_bytes(subminor);
+        // read all currently available messages
+        let mut pbuf = [0u8];
+        let mut peeklen = self.tcpstream.peek(&mut pbuf).expect("peek failed");
+        while peeklen > 0 {
+            // first byte is the message type per protocol -- read it, handle based on type
+            let mut mtype = [0u8];
+            match self.tcpstream.read_exact(&mut mtype) {
+                Err(e) => eprintln!("failed to read message type, with Err: {}", e),
+                _ => ()
             }
-            MessageType::WELCOME => {
-                // this message type has variable length, so, we determine that length
-                // and read that many bytes
-                let mut len = [0u8, 0u8];
-                match self.tcpstream.read_exact(&mut len){
-                    Err(e) => eprintln!("failed to read Welcome message length with Err: {}", e),
-                    _ => ()
+            match mtype[0] {
+                MessageType::VERSION => {
+                    let mut major = [0u8];
+                    let mut minor = [0u8];
+                    let mut subminor = [0u8];
+                    match self.tcpstream.read_exact(&mut major) {
+                        Err(e) => eprintln!("Failed to read major version with Err: {}", e),
+                        _ => ()
+                    }
+                    match self.tcpstream.read_exact(&mut minor) {
+                        Err(e) => eprintln!("Failed to read minor version with Err: {}", e),
+                        _ => ()
+                    }
+                    match self.tcpstream.read_exact(&mut subminor) {
+                        Err(e) => eprintln!("Failed to read subminor version with Err: {}", e),
+                        _ => ()
+                    }
+                    self.server_major_ver = u8::from_le_bytes(major);
+                    self.server_minor_ver = u8::from_le_bytes(minor);
+                    self.server_subminor_ver = u8::from_le_bytes(subminor);
                 }
-                let len:u16 = u16::from_le_bytes(len);
-                let mut wm_buf = vec![0; len as usize];
-                match self.tcpstream.read_exact(&mut wm_buf){
-                    Err(e) => eprintln!("failed to read Welcome message content with Err: {}", e),
-                    _ => ()
+                MessageType::WELCOME => {
+                    // this message type has variable length, so, we determine that length
+                    // and read that many bytes
+                    let mut len = [0u8, 0u8];
+                    match self.tcpstream.read_exact(&mut len){
+                        Err(e) => eprintln!("failed to read Welcome message length with Err: {}", e),
+                        _ => ()
+                    }
+                    let len:u16 = u16::from_le_bytes(len);
+                    let mut wm_buf = vec![0; len as usize];
+                    match self.tcpstream.read_exact(&mut wm_buf){
+                        Err(e) => eprintln!("failed to read Welcome message content with Err: {}", e),
+                        _ => ()
+                    }
+                    self.inbuffer.extend_from_slice(&wm_buf[0..]);
                 }
-                self.inbuffer.extend_from_slice(&wm_buf[0..]);
+                _ => ()
             }
-            _ => ()
+            // are there any more bytes to process?
+            peeklen = self.tcpstream.peek(&mut pbuf).expect("peek failed");
         }
     }
 }
