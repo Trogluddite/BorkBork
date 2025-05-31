@@ -21,6 +21,7 @@ pub enum Message{
     Join{
         author:         Arc<TcpStream>,
         message_type:   u8,
+        name_len:       u16,
         username:       Vec<u8>,
     },
     Leave{

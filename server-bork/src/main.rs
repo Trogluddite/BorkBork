@@ -111,7 +111,7 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
             Message::ChatMsg { author, message_type, sender_id, message_len, message_text } => {
                 println!("received ChatMsg type");
             }
-            Message::Join { author, message_type, username } => {
+            Message::Join { author, message_type, name_len, username } => {
                 println!("received Join type");
             }
             Message::Leave { author, message_type } => {
@@ -148,6 +148,7 @@ fn handle_client(
         println!("[SERVER_MESSAGE]: New connection from {:?}", stream.peer_addr().unwrap());
     }
 
+    /****< Connection preamble: send sever version & welcome to each client>***/
     let server_version = Message::Version{
         author: stream.clone(),
         message_type: MessageType::VERSION,
@@ -167,6 +168,43 @@ fn handle_client(
     message.send(welcome).map_err(|err|{
         println!("[ERROR]: Couldn't send welcome message to MPSC sender. Err was {}",err);
     })?;
+    /*********************</connection preamble>******************************/
+
+    let mut reader = BufReader::new(stream.as_ref());
+    let mut message_type = [0u8];
+    let mut bufr:Vec<u8> = Vec::new();
+    loop{
+        reader.read_exact(&mut message_type).map_err(|err| {
+            eprintln!("[SERVER MESSAGE]: Couldn't receive message; assuming client disconnect. Error was: {}", err);
+        });
+        match message_type[0]{
+            MessageType::JOIN => {
+                let mut len = [0u8, 0u8];
+                match reader.read_exact(&mut len){
+                    Err(e) => eprintln!("[SERVER_MESSAGE]: Couldn't read username length from JOIN message. Err was: {}", e),
+                    _ => (),
+                }
+                let len:u16 = u16::from_le_bytes(len);
+                // TODO: this should either log in an existing user, or add a guest
+                // for now, just getting message flow working, so users just get
+                // hucked into a list
+                let mut uname_buf = vec![0; len as usize];
+                match reader.read_exact(&mut uname_buf) {
+                    Err(e) => eprintln!("[SERVER_MESSAGE]: Couldn't read {} bytes (expected for Username length)", len),
+                    _ => (),
+                }
+                server_state.lock().unwrap().user_list.push(
+                    User::new(String::from_utf8(uname_buf).unwrap())
+                );
+            }
+            _ => {
+                eprintln!(
+                    "[WARN]: The client sent an unknown message type, with ID: {}; ignoring message contents",
+                    message_type[0]
+                );
+            }
+        }
+    }
 
     Ok(())
 }
