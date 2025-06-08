@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 color-eyre = "0.6.5"
 common-bork = {path = "../common-bork/"}
+tui = {path = "../"}
 
 crossterm = "0.29.0"
 futures = "0.3.31"

@@ -26,7 +26,7 @@ const SERVER_ADDRESS:&'static str = "0.0.0.0";
 fn main() -> Result<(), Box<dyn Error>> {
     let _ = simple_logging::log_to_file("./client-bork.log", LevelFilter::Info);
     /* set up the terminal */
-    enable_raw_mode()?;
+    /*enable_raw_mode()?;
     let mut stderr = io::stderr();  //Since Terminal defaults stderr/stdout to the same stream
     match execute!(stderr, EnterAlternateScreen) {
         Err(e) => error!("Failed to enter alternate screen mode with Err: {}", e),
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     terminal.show_cursor()?;
     if let Err(err) = res{
         error!("{err:?}");
-    }
+    }*/
 
     Ok(())
 }

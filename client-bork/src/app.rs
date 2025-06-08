@@ -1,9 +1,16 @@
 use log::{info, error};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, self};
 use std::io::Read;
 use std::net::{Shutdown, TcpStream};
+use std::sync::atomic::AtomicBool;
 use socket2::{Socket, Domain, Type};
 
 use::common_bork::MessageType;
+
+use crate::{
+    events::{Event, Events},
+    tui::Tui,
+};
 
 #[allow(unused)] const SUBMINOR_VER:u8 = 1;
 #[allow(unused)] const MINOR_VER:u8 = 0;
@@ -11,6 +18,13 @@ use::common_bork::MessageType;
 
 pub enum CurrentScreen{
     Main,
+}
+
+pub enum Mode{
+    RecieveScroll,
+    Send,
+    UserScroll,
+    Config,
 }
 
 pub struct App{
@@ -23,12 +37,19 @@ pub struct App{
     pub server_major_ver:   u8,
     pub tcpstream:          TcpStream,
     pub inbuffer:           Vec<u8>,
-    //pub outbuffer:          Vec<u8>,
+    pub rx: UnboundedReceiver<Action>,
+    pub tx: UnboundedSender<Action>,
+    pub loading_status: Arc<AtomicBoo>,
+    pub mode: Mode,
+    pub last_mode: Mode,
+    pub last_tick_key_events: Vec<KeyEvent>,
+    pub frame_count: usize,
 }
 
 #[allow(dead_code)]
 impl App{
     pub fn new() -> App {
+        let (tx, rx): mpsc::unbounded_channel();
         App {
             current_screen: CurrentScreen::Main,
             server_address: String::new(),
@@ -39,9 +60,47 @@ impl App{
             server_major_ver: 0,
             tcpstream: TcpStream::from(Socket::new(Domain::IPV4, Type::STREAM, None).unwrap()),
             inbuffer: Vec::new(),
-            //outbuffer: Vec::new(),
+            tx,
+            rx,
+            loading_status: Arc::new(tx.clone, loading_status.clone()),
+            mode: Mode::Send,
+            last_mode: Mode::Config,
+            last_tick_key_events: Vec::new(),
+            frame_count: 0,
         }
     }
+
+    pub async fn run(&mut self, mut tui: Tui, mut events: Events) -> Result<()> {
+        let mut tui = tui::Tui::new()?
+            .tick_rate(4.0)
+            .frame_rate(60.0);
+        tui.enter()?;
+        loop{
+            tui.draw(|f| {
+                self.ui(f);
+            })?;
+
+            if let Some(evt) = tui.next().await { // block until an event is received
+                let mut maybe_action = self.handle_event(evt);
+                while let Some(action) = maybe_action {
+                    maybe_action = self.update(action);
+                }
+            };
+
+            if self.should_quit() {
+                break;
+            }
+
+            tui.exit()?;
+            Ok(())
+        }
+    }
+
+    pub fn handle_event(&mut self, e: Event) -> Result<Option<Action>> {}
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {}
+    pub fn handle_action(&mut self, action: Action) -> Result<()> { Ok(()) }
+    pub fn draw(&mut self, tui: &mut Tui) -> Result<()> { Ok(()) }
+
 
     pub fn connect_server(&mut self, ip: &str, port: u16){
         self.server_address = ip.into();
