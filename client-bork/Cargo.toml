@@ -4,10 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+color-eyre = "0.6.5"
 common-bork = {path = "../common-bork/"}
 
 crossterm = "0.29.0"
+futures = "0.3.31"
 log = "0.4"
 ratatui = "0.29.0"
+serde = "1.0.219"
+serde_derive = "1.0.219"
 simple-logging = "2.0.2"
 socket2 = "0.5.10"
+tokio = "1.45.1"
+tokio-util = "0.7.15"
