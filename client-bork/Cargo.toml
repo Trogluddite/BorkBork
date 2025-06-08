@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-crossterm = "0.29.0"
-ratatui = "0.29.0"
-socket2 = "0.5.10"
 common-bork = {path = "../common-bork/"}
+
+crossterm = "0.29.0"
+log = "0.4"
+ratatui = "0.29.0"
+simple-logging = "2.0.2"
+socket2 = "0.5.10"
