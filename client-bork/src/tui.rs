@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 use color_eyre::eyre::Result;
+use log::{info, error, LevelFilter};
 use futures::{FutureExt, StreamExt};
 use ratatui::backend::CrosstermBackend as Backend;
 use ratatui::crossterm::{
@@ -147,4 +148,89 @@ impl Tui {
         });
     }
 
+    pub fn stop(&self) -> Result<()> {
+        self.cancel();
+        let mut counter = 0;
+        while !self.task.is_finished() {
+            std::thread::sleep(Duration::from_millis(1));
+            counter += 1;
+            if counter > 50 {
+                self.task.abort();
+            }
+            if counter > 100 {
+                error!("Failed to abort task after 100 milliseconds; reason unknown");
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn enter(&self) -> Result<()> {
+        crossterm::terminal::enable_raw_mode()?;
+        crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
+        if self.mouse{
+            crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+        }
+        if self.paste{
+            crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
+        }
+        self.start();
+        Ok(())
+    }
+
+    pub fn exit(&mut self) -> Result<()> {
+        self.stop()?;
+        if crossterm::terminal::is_raw_mode_enabled()? {
+            self.flush()?;
+            if self.paste {
+                crossterm::execute!(std::io::stderr(), DisableBracketedPaste);
+            }
+            if self.mouse {
+                crossterm::execute!(std::io::stderr(), DisableMouseCapture);
+            }
+            crossterm::execute!(std::io::stderr(), LeaveAlternateScreen, cursor::Show)?;
+            crossterm::terminal::disable_raw_mode()?;
+        }
+        Ok(())
+    }
+
+    pub fn cancel(&self) {
+        self.cancellation_token.cancel();
+    }
+
+    pub fn suspend(&mut self) -> Result<()> {
+        self.exit()?;
+        #[cfg(not(windows))]
+        signal_hook::low_level::raise(signal_hook::consts::signal::SIGTSTP)?;
+        Ok(())
+    }
+
+    pub fn resume(&mut self) -> Result<()> {
+        self.enter()?;
+        Ok(())
+    }
+
+    pub fn next(&mut self) -> Option<Event> {
+        self.event_rx.recv().await
+    }
+}
+
+impl Deref for Tui {
+    type Target = ratatui::Terminal<Backend<std::io::Stderr>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.terminal
+    }
+}
+
+impl DerefMut for Tui {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.terminal
+    }
+}
+
+impl Drop for Tui {
+    fn drop(&mut self) {
+        self.exit().unwrap();
+    }
 }
