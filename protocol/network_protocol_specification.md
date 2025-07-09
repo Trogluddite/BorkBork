@@ -3,11 +3,12 @@
 **09JULY2025**
 
 ## Overview
-The BorkBork protocol is an application-layer definition of messages intended for use with chat servers and clients.
+The BorkBork protocol is an application-layer network contract for use with simple client-server model chat services.
+
 * Numerals are encoded as little-endian
-* the first byte specifies the message type in all cases
-* variable-length feilds are not null-terminated
-* fixed-length fields ARE null terminated UNLESS the content is exactly the length of field
+* The first byte specifies the message type in all cases
+* Variable-length fields are not null-terminated
+* Fixed-length fields ARE null terminated UNLESS the content is exactly the length of field
 
 ## Message Types
 
