@@ -1,4 +1,4 @@
-# BorkBork Chat Service wire protocol
+# BorkBork Network Application Protocol
 **VERSION: 0.0.2**\
 **09JULY2025**
 
