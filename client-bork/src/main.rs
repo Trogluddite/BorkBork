@@ -1,25 +1,21 @@
 #[allow(unused_imports)]
+use crate::app::App;
+#[allow(unused_imports)]
 use log::{info, error, LevelFilter};
 
-mod app;
-mod events;
-mod tui;
-mod ui;
-
-use app::App;
-use color_eyre::eyre::Result;
-
-const SERVER_PORT: u16 = 6556;
-//const SERVER_ADDRESS:&'static str = "164.90.146.27";
-const SERVER_ADDRESS: &'static str = "0.0.0.0";
+pub mod app;
+pub mod event;
+pub mod ui;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let _ = simple_logging::log_to_file("./client-bork.log", LevelFilter::Info);
-    let tui = tui::init()?;
-    let events = events::Events::new();
-    App::new().run();
-   
-    Ok(())
+async fn main() -> color_eyre::Result<()> {
+    let _ = simple_logging::log_to_file("./client.log", LevelFilter::Info);
+    color_eyre::install()?;
+    let terminal = ratatui::init();
+    info!("Initialized terminal");
+    let result = App::new().run(terminal).await;
+    info!("Initialized app");
+    ratatui::restore();
+    info!("Terminal restored");
+    result
 }
-
