@@ -3,7 +3,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, self};
 use std::io::Read;
 use std::net::{Shutdown, TcpStream};
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use socket2::{Socket, Domain, Type};
+use tokio::net::TcpStream as AsyncTcpStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use::common_bork::MessageType;
 
@@ -39,7 +42,7 @@ pub struct App{
     pub inbuffer:           Vec<u8>,
     pub rx: UnboundedReceiver<Action>,
     pub tx: UnboundedSender<Action>,
-    pub loading_status: Arc<AtomicBoo>,
+    pub loading_status: Arc<AtomicBool>,
     pub mode: Mode,
     pub last_mode: Mode,
     pub last_tick_key_events: Vec<KeyEvent>,
@@ -49,7 +52,7 @@ pub struct App{
 #[allow(dead_code)]
 impl App{
     pub fn new() -> App {
-        let (tx, rx): mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::unbounded_channel();
         App {
             current_screen: CurrentScreen::Main,
             server_address: String::new(),
@@ -62,7 +65,7 @@ impl App{
             inbuffer: Vec::new(),
             tx,
             rx,
-            loading_status: Arc::new(tx.clone, loading_status.clone()),
+            loading_status: Arc::new(AtomicBool::new(false)),
             mode: Mode::Send,
             last_mode: Mode::Config,
             last_tick_key_events: Vec::new(),
@@ -96,23 +99,108 @@ impl App{
         }
     }
 
-    pub fn handle_event(&mut self, e: Event) -> Result<Option<Action>> {}
-    pub fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {}
-    pub fn handle_action(&mut self, action: Action) -> Result<()> { Ok(()) }
-    pub fn draw(&mut self, tui: &mut Tui) -> Result<()> { Ok(()) }
-
-
-    pub fn connect_server(&mut self, ip: &str, port: u16){
+    pub async fn connect_server(&mut self, ip: &str, port: u16) -> Result<(), Box<dyn std::error::Error>> {
         self.server_address = ip.into();
         self.server_port = port;
         let address = format!("{}:{}", self.server_address, self.server_port);
-        let stream = TcpStream::connect(&address).map_err(|err|{
-            error!("Couldn't connect, error was: {}", err);
+        
+        // Create async TCP stream
+        let stream = AsyncTcpStream::connect(&address).await?;
+        let (mut reader, mut writer) = stream.into_split();
+        
+        // Clone the event sender for the server task
+        let event_tx = self.tx.clone();
+        
+        // Spawn a task to handle incoming server data
+        tokio::spawn(async move {
+            let mut buffer = vec![0; 1024];
+            loop {
+                match reader.read(&mut buffer).await {
+                    Ok(0) => {
+                        // Connection closed
+                        event_tx.send(Event::ServerDisconnected).unwrap();
+                        break;
+                    }
+                    Ok(n) => {
+                        // Data received
+                        event_tx.send(Event::ServerData(buffer[..n].to_vec())).unwrap();
+                    }
+                    Err(e) => {
+                        // Error occurred
+                        event_tx.send(Event::ServerError(e.to_string())).unwrap();
+                        break;
+                    }
+                }
+            }
         });
-        self.tcpstream = stream.unwrap();
+
         self.server_connected = true;
+        event_tx.send(Event::ServerConnected).unwrap();
         info!("Connected to server {}:{}", ip, port);
+        Ok(())
     }
+
+    pub async fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
+        match event {
+            Event::ServerData(data) => {
+                // Process incoming server data
+                self.process_server_data(data);
+                Ok(None)
+            }
+            Event::ServerConnected => {
+                info!("Server connection established");
+                Ok(None)
+            }
+            Event::ServerDisconnected => {
+                info!("Server disconnected");
+                self.server_connected = false;
+                Ok(None)
+            }
+            Event::ServerError(err) => {
+                error!("Server error: {}", err);
+                self.server_connected = false;
+                Ok(None)
+            }
+            Event::Key(key) => {
+                self.handle_key_event(key)
+            }
+            // ... handle other events ...
+            _ => Ok(None)
+        }
+    }
+
+    fn process_server_data(&mut self, data: Vec<u8>) {
+        // Process the incoming data based on message type
+        if data.is_empty() {
+            return;
+        }
+
+        match data[0] {
+            MessageType::VERSION => {
+                if data.len() >= 4 {
+                    self.server_major_ver = data[1];
+                    self.server_minor_ver = data[2];
+                    self.server_subminor_ver = data[3];
+                }
+            }
+            MessageType::WELCOME => {
+                if data.len() >= 3 {
+                    let len = u16::from_le_bytes([data[1], data[2]]) as usize;
+                    if data.len() >= 3 + len {
+                        self.inbuffer.extend_from_slice(&data[3..3+len]);
+                    }
+                }
+            }
+            _ => {
+                // Handle other message types
+                self.inbuffer.extend_from_slice(&data);
+            }
+        }
+    }
+
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {}
+    pub fn handle_action(&mut self, action: Action) -> Result<()> { Ok(()) }
+    pub fn draw(&mut self, tui: &mut Tui) -> Result<()> { Ok(()) }
 
     pub fn disconnect(&mut self){
         match self.tcpstream.shutdown(Shutdown::Both) {
