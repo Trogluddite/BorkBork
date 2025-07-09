@@ -14,7 +14,7 @@ pub enum Message{
     ChatMsg{
         author:         Arc<TcpStream>,
         message_type:   u8,
-        sender_id:      u16,
+        sender_id:      u128,
         message_len:    u16,
         message_text:   Vec<u8>,
     },
@@ -31,9 +31,9 @@ pub enum Message{
     Version{
         author:         Arc<TcpStream>,
         message_type:   u8,
-        major_rev:      u8,
-        minor_rev:      u8,
-        subminor_rev:   u8,
+        major_rev:      u16,
+        minor_rev:      u16,
+        subminor_rev:   u16,
     },
     Welcome{
         author:         Arc<TcpStream>,

@@ -1,5 +1,5 @@
 # BorkBork Network Application Protocol
-**VERSION: 0.0.2**\
+**VERSION: 0.0.3**\
 **09JULY2025**
 
 ## Overview
@@ -33,9 +33,9 @@ while GUIDs should uniquely identify individuals
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | Type specifier, set to 0 | uint 8 |
-| 1-2 | message length | uint 16 |
-| 3-19 | GUID associated with username  | uint 128 |
-| 5+ | message contents | char vector |
+| 1-17 | GUID associated with username  | uint 128 |
+| 18-19 | message length | uint 16 |
+| 19+ | message contents | char vector |
 
 ### JOIN
 Sent by the client when joining the server. Expect Future expansion to
@@ -43,7 +43,7 @@ support authenticated users
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | type specifier, set to 1 | uint 8 |
-| 1-2 | name length | uint 16 |
+| 1-2 | username length | uint 16 |
 | 3+ | username | char vector |
 
 ### LEAVE
