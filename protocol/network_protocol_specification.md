@@ -1,5 +1,5 @@
 # BorkBork Chat Service wire protocol
-**VERSION: 0.0.1**
+**VERSION: 0.0.2**\
 **09JULY2025**
 
 ## Overview
@@ -19,17 +19,21 @@ The BorkBork protocol is an application-layer definition of messages intended fo
 | VERSION | 3 | 7 bytes |
 | WELCOME | 4 | variable |
 | EXTENDED | 5 | variable |
+| USERJOINED | 6 | variable |
+| USERLEFT | 7 | 129 bytes |
 
 ### CHATMSG
 Sent by both client and server -- a variable length message whose content
 represents a chat message.
 
-Numeric ID of sender should map to a username. Username / ID mapping should be maintained by the server.
+GUID of sender should map to a username. Username / ID mapping should be maintained by the server.
+GUIDs may maintain a 1:many association with usernames; usernames should be considered a display name
+while GUIDs should uniquely identify individuals
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | Type specifier, set to 0 | uint 8 |
 | 1-2 | message length | uint 16 |
-| 3-4 | numeric ID of sender | uint 16 |
+| 3-19 | GUID associated with username  | uint 128 |
 | 5+ | message contents | char vector |
 
 ### JOIN
@@ -78,8 +82,19 @@ recorded as a part of the protocol
 | 1-4 | type specifier for extension | uint 64 |
 | 5+ | content specific to extended message type | various |
 
+### USERJOINED
+Sent by the server, to clients, when a user has joined the server
+| Byte | Meaning | datatype hint |
+| ------ | ------------------------------ | ----------------- |
+| 0 | type specifier. Set to 6. | uint 8 |
+| 1-17 | User GUID | uint 128 |
+| 18-19 | username length | uint 16 |
+| 20+ | username | char vector |
 
-
-
-
+### USERLEFT
+Sent by the server, to clients, when a user has left the server
+| Byte | Meaning | datatype hint |
+| ------ | ------------------------------ | ----------------- |
+| 0 | type specifier. Set to 7. | uint 8 |
+| 1-17 | User GUID | uint 128 |
 
