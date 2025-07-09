@@ -67,10 +67,12 @@ impl Widget for &App {
             .border_set(border::DOUBLE);
         let recv_messages_block = Block::bordered()
             .border_set(border::EMPTY);
+        let recv_messages_text = Paragraph::new(String::from(str::from_utf8(&self.inbuffer).unwrap()))
+            .block(recv_messages_block);
         let users_block = Block::bordered()
             .title(users_title.centered())
             .border_set(border::ROUNDED);
-        recv_messages_block.render(chat_inner_layout[0], buf);
+        recv_messages_text.render(chat_inner_layout[0], buf);
         send_message_block.render(chat_inner_layout[1], buf);
         chat_block.render(inner_layout[0], buf);
         users_block.render(inner_layout[1], buf);

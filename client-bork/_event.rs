@@ -11,28 +11,15 @@ const TICK_FPS: f64 = 30.0;
 #[derive(Clone, Debug)]
 pub enum Event {
     /// An event that is emitted on a regular schedule.
-    ///
-    /// Use this event to run any code which has to run outside of being a direct response to a user
-    /// event. e.g. polling exernal systems, updating animations, or rendering the UI based on a
-    /// fixed frame rate.
     Tick,
-    /// Crossterm events.
-    ///
-    /// These events are emitted by the terminal.
+    /// Crossterm events are emitted by the terminal.
     Crossterm(CrosstermEvent),
-    /// Application events.
-    ///
-    /// Use this event to emit custom events that are specific to your application.
+    // custom events specific to the application
     App(AppEvent),
 }
 
-/// Application events.
-///
-/// You can extend this enum with your own custom events.
 #[derive(Clone, Debug)]
 pub enum AppEvent {
-    Increment,
-    Decrement,
     DisconnectServer,
     ConnectServer,
     Quit,
@@ -41,14 +28,11 @@ pub enum AppEvent {
 /// Terminal event handler.
 #[derive(Debug)]
 pub struct EventHandler {
-    /// Event sender channel.
     sender: mpsc::UnboundedSender<Event>,
-    /// Event receiver channel.
     receiver: mpsc::UnboundedReceiver<Event>,
 }
 
 impl EventHandler {
-    /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let actor = EventTask::new(sender.clone());
