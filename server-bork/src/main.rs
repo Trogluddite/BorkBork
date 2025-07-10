@@ -104,9 +104,14 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(major_rev.to_le_bytes());
                 message.extend(minor_rev.to_le_bytes());
                 message.extend(subminor_rev.to_le_bytes());
+                println!("{}.{}.{}",major_rev, minor_rev, subminor_rev);
+                println!("Bytes: {:?}", &message);
+
                 author.as_ref().write_all(&message).map_err(|err| {
                     println!("[ERROR]: couldn't send version message to client, with error: {}", err);
                 })?;
+                author.as_ref().flush();
+                println!("finished sending to client");
             }
             Message::ChatMsg { author, message_type, sender_id, message_len, message_text } => {
                 println!("received ChatMsg type");
@@ -125,6 +130,7 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 author.as_ref().write_all(&message).map_err(|err| {
                     println!("Couldn't send welcome message to client, with error {}", err);
                 })?;
+                author.as_ref().flush();
             }
             _ => {
                 println!("received unknown mesage type");
@@ -154,7 +160,7 @@ fn handle_client(
         message_type: MessageType::VERSION,
         major_rev: 0,
         minor_rev: 0,
-        subminor_rev: 1,
+        subminor_rev: 3,
     };
     message.send(server_version).map_err(|err| {
         println!("[ERROR]: Couldn't send version message to client. Err was: {}", err);
