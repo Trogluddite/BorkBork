@@ -104,9 +104,6 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(major_rev.to_le_bytes());
                 message.extend(minor_rev.to_le_bytes());
                 message.extend(subminor_rev.to_le_bytes());
-                println!("{}.{}.{}",major_rev, minor_rev, subminor_rev);
-                println!("Bytes: {:?}", &message);
-
                 author.as_ref().write_all(&message).map_err(|err| {
                     println!("[ERROR]: couldn't send version message to client, with error: {}", err);
                 })?;
@@ -176,13 +173,18 @@ fn handle_client(
     })?;
     /*********************</connection preamble>******************************/
 
+    let mut isalive = true;
     let mut reader = BufReader::new(stream.as_ref());
     let mut message_type = [0u8];
     let mut bufr:Vec<u8> = Vec::new();
     loop{
         reader.read_exact(&mut message_type).map_err(|err| {
             eprintln!("[SERVER MESSAGE]: Couldn't receive message; assuming client disconnect. Error was: {}", err);
+            stream.as_ref().shutdown(Shutdown::Both);
+            isalive = false;
         });
+        if !isalive { break; }
+
         match message_type[0]{
             MessageType::JOIN => {
                 let mut len = [0u8, 0u8];
