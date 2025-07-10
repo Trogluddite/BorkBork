@@ -1,9 +1,11 @@
 [package]
 name = "server-bork"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 
 [dependencies]
 argon2 = "0.5.3"
-sqlite = "0.37.0"
 common-bork = {path = "../common-bork/"}
+log = "0.4"
+simple-logging = "2.0.2"
+sqlite = "0.37.0"

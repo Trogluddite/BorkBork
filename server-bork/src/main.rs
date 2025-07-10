@@ -1,5 +1,6 @@
 #![allow(unused)] //FIXME: WIP
 
+use log::{debug, error, info, LevelFilter};
 use std::io::{BufReader, Read, Write};
 use std::{result, thread};
 use std::sync::{Arc, Mutex};
@@ -57,11 +58,12 @@ impl ServerState{
 }
 
 fn main() -> Result<()> {
+    let _ = simple_logging::log_to_file("./server.log", LevelFilter::Info);
     let address = format!("{}:{}", SERVER_ADDRESS, SERVER_PORT);
     let listener = TcpListener::bind(&address).map_err(|_err| {
-        println!("[SERVER_MESSAGE]: Error: could not bind to address {address}");
+        error!("could not bind to address {address}");
     })?;
-    println!("[SERVER_MESSAGE]: running on socket: {address}");
+    info!("running on socket: {address}");
 
     let server_state = ServerState::new();
     let server_state = Arc::new(Mutex::new(server_state));
@@ -76,11 +78,11 @@ fn main() -> Result<()> {
                 let stream = Arc::new(stream);
                 let sender = sender.clone();
                 let server_state = Arc::clone(&server_state);
-                println!("[SERVER_MESSAGE]: new connection, spawning thread for client {:?}", stream.peer_addr().unwrap());
+                info!("new connection, spawning thread for client {:?}", stream.peer_addr().unwrap());
                 thread::spawn(move || handle_client(stream, sender, server_state));
             }
             Err(e) => {
-                println!("Error: {}", e);
+                error!("error spawning thread for incomming stream: {}", e);
             }
         }
     }
@@ -88,14 +90,14 @@ fn main() -> Result<()> {
 }
 
 fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Result<()> {
-    println!("[SERVER_MESSAGE]: handling incomming messages from client threads");
+    info!("handling incomming messages from client threads");
     loop{
         let rec = reciever.lock();
         let message = rec
             .unwrap()
             .recv()
             .map_err(|err| {
-                println!("[ERROR]: Couldn't receive message, got error: {}", err);
+                error!("MPSC handler couldn't receive message, got error: {}", err);
             })?;
         match message{
             Message::Version { author, message_type, major_rev, minor_rev, subminor_rev } => {
@@ -105,19 +107,18 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(minor_rev.to_le_bytes());
                 message.extend(subminor_rev.to_le_bytes());
                 author.as_ref().write_all(&message).map_err(|err| {
-                    println!("[ERROR]: couldn't send version message to client, with error: {}", err);
+                    error!("MPSC handler couldn't send version message to client, with error: {}", err);
                 })?;
                 author.as_ref().flush();
-                println!("finished sending to client");
             }
             Message::ChatMsg { author, message_type, sender_id, message_len, message_text } => {
-                println!("received ChatMsg type");
+                debug!("MPSC handler received ChatMsg type");
             }
             Message::Join { author, message_type, name_len, username } => {
-                println!("received Join type");
+                debug!("MPSC handler received Join type");
             }
             Message::Leave { author, message_type } => {
-                println!("received Leave type");
+                debug!("MPSC handler received Leave type");
             }
             Message::Welcome { author, message_type, message_len, welcome_msg } => {
                 let mut message: Vec<u8> = Vec::new();
@@ -125,12 +126,12 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(message_len.to_le_bytes());
                 message.extend(welcome_msg);
                 author.as_ref().write_all(&message).map_err(|err| {
-                    println!("Couldn't send welcome message to client, with error {}", err);
+                    error!("MPSC couldn't send welcome message to client, with error {}", err);
                 })?;
                 author.as_ref().flush();
             }
             _ => {
-                println!("received unknown mesage type");
+                info!("MPSC handler received unknown mesage type");
             }
         }
     }
@@ -144,11 +145,11 @@ fn handle_client(
     server_state: Arc<Mutex<ServerState>>) -> Result<()> {
 
     if stream.peer_addr().is_err() {
-        println!("[ERROR]: couldn't get client's peer address.");
+        error!("couldn't get client's peer address.");
         return Err(());
     }
     else {
-        println!("[SERVER_MESSAGE]: New connection from {:?}", stream.peer_addr().unwrap());
+        info!("new connection from {:?}", stream.peer_addr().unwrap());
     }
 
     /****< Connection preamble: send sever version & welcome to each client>***/
@@ -156,11 +157,11 @@ fn handle_client(
         author: stream.clone(),
         message_type: MessageType::VERSION,
         major_rev: 0,
-        minor_rev: 0,
-        subminor_rev: 3,
+        minor_rev: 1,
+        subminor_rev: 4,
     };
     message.send(server_version).map_err(|err| {
-        println!("[ERROR]: Couldn't send version message to client. Err was: {}", err);
+        error!("couldn't send version message to client. Err was: {}", err);
     })?;
     let welcome = Message::Welcome{
         author: stream.clone(),
@@ -169,7 +170,7 @@ fn handle_client(
         welcome_msg: WELCOME.as_bytes().to_vec(),
     };
     message.send(welcome).map_err(|err|{
-        println!("[ERROR]: Couldn't send welcome message to MPSC sender. Err was {}",err);
+        error!("couldn't send welcome message to MPSC sender. Err was {}",err);
     })?;
     /*********************</connection preamble>******************************/
 
@@ -179,7 +180,7 @@ fn handle_client(
     let mut bufr:Vec<u8> = Vec::new();
     loop{
         reader.read_exact(&mut message_type).map_err(|err| {
-            eprintln!("[SERVER MESSAGE]: Couldn't receive message; assuming client disconnect. Error was: {}", err);
+            error!("couldn't receive message; assuming client disconnect. Error was: {}", err);
             stream.as_ref().shutdown(Shutdown::Both);
             isalive = false;
         });
@@ -189,7 +190,7 @@ fn handle_client(
             MessageType::JOIN => {
                 let mut len = [0u8, 0u8];
                 match reader.read_exact(&mut len){
-                    Err(e) => eprintln!("[SERVER_MESSAGE]: Couldn't read username length from JOIN message. Err was: {}", e),
+                    Err(e) => error!("couldn't read username length from JOIN message. Err was: {}", e),
                     _ => (),
                 }
                 let len:u16 = u16::from_le_bytes(len);
@@ -198,7 +199,7 @@ fn handle_client(
                 // hucked into a list
                 let mut uname_buf = vec![0; len as usize];
                 match reader.read_exact(&mut uname_buf) {
-                    Err(e) => eprintln!("[SERVER_MESSAGE]: Couldn't read {} bytes (expected for Username length)", len),
+                    Err(e) => error!("couldn't read {} bytes (expected for Username length)", len),
                     _ => (),
                 }
                 server_state.lock().unwrap().user_list.push(
@@ -206,8 +207,8 @@ fn handle_client(
                 );
             }
             _ => {
-                eprintln!(
-                    "[WARN]: The client sent an unknown message type, with ID: {}; ignoring message contents",
+                info!(
+                    "the client sent an unknown message type, with ID: {}; ignoring message contents",
                     message_type[0]
                 );
             }
