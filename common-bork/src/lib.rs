@@ -58,14 +58,14 @@ pub enum Message{
         extended_type:  u64,
         content:        Vec<u8>, //future: we likely want type-specific controls for the extensions
     },
-    USERJOINED{
+    Userjoined{
         author:         Arc<TcpStream>,
         message_type:   u8,
         user_id:        Uuid,
         username_len:   u16,
         username:       Vec<u8>,
     },
-    USERLEFT{
+    Userleft{
         author:         Arc<TcpStream>,
         message_type:   u8,
         user_id:        Uuid,

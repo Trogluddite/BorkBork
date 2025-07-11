@@ -1,11 +1,13 @@
 #![allow(unused)] //FIXME: WIP
 
 use log::{debug, error, info, LevelFilter};
+use std::collections::BTreeMap;
 use std::io::{BufReader, Read, Write};
 use std::{result, thread};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::net::{TcpListener, TcpStream, Shutdown};
+use uuid::Uuid;
 
 use::common_bork::{Message, MessageType};
 
@@ -34,26 +36,28 @@ WELCOME TO BORK BORK, A PLACE
 struct User{
     displayname:    String,
     online:         bool,
+    uuid:           Uuid,
 }
 impl User{
     fn new(displayname: String) -> User{
         User{
             displayname,
             online : true,
+            uuid : Uuid::new_v4(),
         }
     }
 }
 struct ServerState{
-    user_list: Vec<User>,
+    user_map: BTreeMap<String, User>,
 }
 impl ServerState{
     fn new() -> ServerState{
         ServerState{
-            user_list: Vec::new(),
+            user_map: BTreeMap::new(),
         }
     }
     fn add_user(&mut self, user: &mut User){
-        self.user_list.push(Clone::clone(user));
+        self.user_map.insert(Clone::clone(&user.displayname), Clone::clone(user));
     }
 }
 
@@ -126,7 +130,18 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(message_len.to_le_bytes());
                 message.extend(welcome_msg);
                 author.as_ref().write_all(&message).map_err(|err| {
-                    error!("MPSC couldn't send welcome message to client, with error {}", err);
+                    error!("MPSC couldn't send Welcome message to client, with error {}", err);
+                })?;
+                author.as_ref().flush();
+            }
+            Message::Userjoined { author, message_type, user_id, username_len, username } => {
+                let mut message: Vec<u8> = Vec::new();
+                message.push(message_type);
+                message.extend(user_id.to_bytes_le());      //uuid
+                message.extend(username_len.to_le_bytes()); //u16
+                message.extend(username);
+                author.as_ref().write_all(&message).map_err(|err| {
+                    error!("MPSC couldn't send Userjoined message to client, with error {}", err);
                 })?;
                 author.as_ref().flush();
             }
@@ -157,8 +172,8 @@ fn handle_client(
         author: stream.clone(),
         message_type: MessageType::VERSION,
         major_rev: 0,
-        minor_rev: 1,
-        subminor_rev: 4,
+        minor_rev: 2,
+        subminor_rev: 0,
     };
     message.send(server_version).map_err(|err| {
         error!("couldn't send version message to client. Err was: {}", err);
@@ -194,17 +209,30 @@ fn handle_client(
                     _ => (),
                 }
                 let len:u16 = u16::from_le_bytes(len);
-                // TODO: this should either log in an existing user, or add a guest
-                // for now, just getting message flow working, so users just get
-                // hucked into a list
                 let mut uname_buf = vec![0; len as usize];
                 match reader.read_exact(&mut uname_buf) {
                     Err(e) => error!("couldn't read {} bytes (expected for Username length)", len),
                     _ => (),
                 }
-                server_state.lock().unwrap().user_list.push(
-                    User::new(String::from_utf8(uname_buf).unwrap())
-                );
+                let uname = String::from_utf8(uname_buf.clone()).unwrap();
+                match server_state.lock().unwrap().user_map.get(&uname) {
+                    Some(u) => {
+                        let mut u : User = User::new(Clone::clone(&uname));
+                        server_state.lock().unwrap().add_user(&mut u);
+                    },
+                    None => info!("User with name {} already exists on the server; nothing to do", uname),
+                }
+                let userjoin = Message::Userjoined {
+                    author: stream.clone(),
+                    message_type: MessageType::USERJOINED,
+                    user_id: (server_state.lock().unwrap().user_map.get(&uname).unwrap() as &User).uuid,
+                    username_len: len,
+                    username: uname_buf.clone(),
+                };
+                message.send(userjoin).map_err(|err|{
+                    error!("couldn't send USERJOINED message to MPSC sender. Err was {}",err);
+                })?;
+
             }
             _ => {
                 info!(

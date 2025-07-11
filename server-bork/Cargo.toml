@@ -1,6 +1,6 @@
 [package]
 name = "server-bork"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -9,3 +9,4 @@ common-bork = {path = "../common-bork/"}
 log = "0.4"
 simple-logging = "2.0.2"
 sqlite = "0.37.0"
+uuid = {version = "1.17.0", features = ["v4"]}
