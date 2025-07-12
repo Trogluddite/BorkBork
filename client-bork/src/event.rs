@@ -22,6 +22,7 @@ pub enum Event {
 pub enum AppEvent {
     DisconnectServer,
     ConnectServer,
+    JoinUser,
     Quit,
 }
 

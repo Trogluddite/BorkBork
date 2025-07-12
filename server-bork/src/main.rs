@@ -220,7 +220,10 @@ fn handle_client(
                         let mut u : User = User::new(Clone::clone(&uname));
                         server_state.lock().unwrap().add_user(&mut u);
                     },
-                    None => info!("User with name {} already exists on the server; nothing to do", uname),
+                    None => {
+                        info!("User with name {} already exists on the server; nothing to do", uname);
+                        info!("Current users are: {:?}", server_state.lock().unwrap().user_map.keys());
+                    },
                 }
                 let userjoin = Message::Userjoined {
                     author: stream.clone(),
