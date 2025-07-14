@@ -1,6 +1,6 @@
 # BorkBork Network Application Protocol
-**VERSION: 0.0.3**\
-**09JULY2025**
+**VERSION: 0.0.4**\
+**14JULY2025**
 
 ## Overview
 The BorkBork protocol is an application-layer network contract for use with simple client-server model chat services.
@@ -21,20 +21,23 @@ The BorkBork protocol is an application-layer network contract for use with simp
 | WELCOME | 4 | variable |
 | EXTENDED | 5 | variable |
 | USERJOINED | 6 | variable |
-| USERLEFT | 7 | 129 bytes |
+| USERSTATUS | 7 | 130 bytes |
+| GETUSERS | 8 | 1 byte |
+| USERLIST | 9 | variable |
+| GETUSERSTATUS | 10 |17 bytes |
 
 ### CHATMSG
 Sent by both client and server -- a variable length message whose content
 represents a chat message.
 
-GUID of sender should map to a username. Username / ID mapping should be maintained by the server.
-GUIDs may maintain a 1:many association with usernames; usernames should be considered a display name
-while GUIDs should uniquely identify individuals
+UUID of sender should map to a username. Username / ID mapping should be maintained by the server.
+UUIDs may maintain a 1:many association with usernames; usernames should be considered a display name
+while UUIDs should uniquely identify individuals
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | Type specifier, set to 0 | uint 8 |
-| 1-17 | GUID associated with username  | uint 128 |
-| 18-19 | message length | uint 16 |
+| 1-16 | UUID associated with username  | uint 128 |
+| 17-18 | message length | uint 16 |
 | 19+ | message contents | char vector |
 
 ### JOIN
@@ -88,14 +91,53 @@ Sent by the server, to clients, when a user has joined the server
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | type specifier. Set to 6. | uint 8 |
-| 1-17 | User GUID | uint 128 |
-| 18-19 | username length | uint 16 |
-| 20+ | username | char vector |
+| 1-16 | User UUID | uint 128 |
+| 17-18 | username length | uint 16 |
+| 19+ | username | char vector |
 
-### USERLEFT
-Sent by the server, to clients, when a user has left the server
+### USERSTATUS
+Sent by the server, to clients, when a user's status has changed
+Replaces unused/unimplemented "USERLEFT" message
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | type specifier. Set to 7. | uint 8 |
-| 1-17 | User GUID | uint 128 |
+| 1-16 | User UUID | uint 128 |
+| 17 | User status byte; specify current status of user | uint 8 |
+
+#### User status types:
+User statuses are packed in byte 17 of a USERSTATUS message.
+these are their meanings.
+| Type ID | Meaning |
+| ------ | ------|
+| 0 | online |
+| 1 | inactive |
+| 2 | offline ( may be used to indicate 'left the server') |
+| 3 | DND |
+| 256 | 'extended' status -- used to indicate a complex status type or for future use when more than 255 status types exist |
+
+### GETUSERS
+Sent by the client to the server, to request a list of users
+| Byte | Meaning | datatype hint |
+| ------ | ------------------------------ | ----------------- |
+| 0 | type specifier. Set to 8. | uint 8 |
+
+### USERLIST
+Sent by the server. Gets a list of UUIDs of all current users.
+UUIDs
+| Byte | Meaning | datatype hint |
+| ------ | ------------------------------ | ----------------- |
+| 0 | type specifier. Set to 9. | uint 8 |
+| 1-2 | number of users in list | uing 16 |
+| 3 - (16 * num_users) | one 16-byte entry for each user | vector<uint 128> |
+
+### GETUSERSTATUS
+Sent by the client to the server, to requet the status of a specific user.
+clients may request user status periodically, but should expect updates from the server at any time.
+
+The client should expect the server to return a USERSTATUS message
+with status types defined above
+| Byte | Meaning | datatype hint |
+| ------ | ------------------------------ | ----------------- |
+| 0 | type specifier. Set to 10 | uint 8 |
+| 1-16 | uuid of the user whose status we're requesting | uint 128 |
 
