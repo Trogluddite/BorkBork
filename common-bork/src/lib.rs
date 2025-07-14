@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::net::TcpStream;
 use uuid::Uuid;
 
-// Matches BorkBork protocol version 0.0.3
+// Matches BorkBork protocol version 0.0.4
 // https://github.com/Trogluddite/BorkBork/blob/main/protocol/network_protocol_specification.md
 pub struct MessageType;
 impl MessageType{
@@ -14,7 +14,9 @@ impl MessageType{
     pub const EXTENDED:     u8 = 5;
     pub const USERJOINED:   u8 = 6;
     pub const USERSTATUS:   u8 = 7;
-
+    pub const GETUSERS:     u8 = 8;
+    pub const USERLIST:     u8 = 9;
+    pub const GETUSERSTATUS:u8 = 10;
 }
 
 pub struct ExtendedMessageType;
@@ -68,7 +70,7 @@ pub enum Message{
         extended_type:  u64,
         content:        Vec<u8>, //future: we likely want type-specific controls for the extensions
     },
-    Userjoined{
+    UserJoined{
         author:         Arc<TcpStream>,
         message_type:   u8,
         user_id:        Uuid,
@@ -84,5 +86,19 @@ pub enum Message{
         desc_len:       u16,
         username:       Vec<u8>,
         desc:           Vec<u8>,
+    },
+    GetUsers{
+        author:         Arc<TcpStream>,
+        message_type:   u8,
+    },
+    UserList{
+        author:         Arc<TcpStream>,
+        message_type:   u8,
+        uuid_list:      Vec<Uuid>,
+    },
+    GetUserStatus{
+        author:         Arc<TcpStream>,
+        message_type:   u8,
+        request_uuid:   Uuid,
     }
 }

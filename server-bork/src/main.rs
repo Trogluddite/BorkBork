@@ -134,14 +134,14 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 })?;
                 author.as_ref().flush();
             }
-            Message::Userjoined { author, message_type, user_id, username_len, username } => {
+            Message::UserJoined { author, message_type, user_id, username_len, username } => {
                 let mut message: Vec<u8> = Vec::new();
                 message.push(message_type);
                 message.extend(user_id.to_bytes_le());      //uuid
                 message.extend(username_len.to_le_bytes()); //u16
                 message.extend(username);
                 author.as_ref().write_all(&message).map_err(|err| {
-                    error!("MPSC couldn't send Userjoined message to client, with error {}", err);
+                    error!("MPSC couldn't send UserJoined message to client, with error {}", err);
                 })?;
                 author.as_ref().flush();
             }
@@ -230,7 +230,7 @@ fn handle_client(
                     }
                     debug!("Current user list is: {:?}", ulss.user_map.keys());
                 }
-                let userjoin = Message::Userjoined {
+                let userjoin = Message::UserJoined {
                     author: stream.clone(),
                     message_type: MessageType::USERJOINED,
                     user_id: (server_state.lock().unwrap().user_map.get(&uname).unwrap() as &User).uuid,
