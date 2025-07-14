@@ -203,6 +203,7 @@ fn handle_client(
 
         match message_type[0]{
             MessageType::JOIN => {
+                info!("received JOIN message from {}", stream.peer_addr().unwrap());
                 let mut len = [0u8, 0u8];
                 match reader.read_exact(&mut len){
                     Err(e) => error!("couldn't read username length from JOIN message. Err was: {}", e),
@@ -215,15 +216,18 @@ fn handle_client(
                     _ => (),
                 }
                 let uname = String::from_utf8(uname_buf.clone()).unwrap();
-                match server_state.lock().unwrap().user_map.get(&uname) {
-                    Some(u) => {
-                        let mut u : User = User::new(Clone::clone(&uname));
-                        server_state.lock().unwrap().add_user(&mut u);
-                    },
-                    None => {
-                        info!("User with name {} already exists on the server; nothing to do", uname);
-                        info!("Current users are: {:?}", server_state.lock().unwrap().user_map.keys());
-                    },
+                {
+                    let mut ulss = server_state.lock().unwrap();
+                    match ulss.user_map.get(&uname) {
+                        Some(u) => {
+                            info!("User with name {} already exists on the server; nothing to do", uname);
+                       },
+                        None => {
+                            info!("attempting to add user with name {} to server", uname);
+                            let mut u : User = User::new(Clone::clone(&uname));
+                            ulss.add_user(&mut u);
+                       },
+                    }
                 }
                 let userjoin = Message::Userjoined {
                     author: stream.clone(),
