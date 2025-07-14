@@ -62,7 +62,7 @@ impl ServerState{
 }
 
 fn main() -> Result<()> {
-    let _ = simple_logging::log_to_file("./server.log", LevelFilter::Info);
+    let _ = simple_logging::log_to_file("./server.log", LevelFilter::Debug);
     let address = format!("{}:{}", SERVER_ADDRESS, SERVER_PORT);
     let listener = TcpListener::bind(&address).map_err(|_err| {
         error!("could not bind to address {address}");
@@ -228,6 +228,7 @@ fn handle_client(
                             ulss.add_user(&mut u);
                        },
                     }
+                    debug!("Current user list is: {:?}", ulss.user_map.keys());
                 }
                 let userjoin = Message::Userjoined {
                     author: stream.clone(),

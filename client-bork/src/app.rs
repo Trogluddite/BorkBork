@@ -1,4 +1,4 @@
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use std::{
     collections::BTreeMap,
     io::{Read, Write},
@@ -29,6 +29,7 @@ pub struct App {
     pub connected:          bool,
     pub events:             EventHandler,
     pub inbuffer:           Vec<u8>,   //TODO: should be a list of rows to use as message buffer
+    pub joined:             bool,       // TODO: probably want a modal object (e.g. online,dnd, etc)
     pub running:            bool,
     pub server_port:        u16,
     pub server_address:     String,
@@ -47,6 +48,7 @@ impl Default for App {
             connected: false,
             events: EventHandler::new(),
             inbuffer: Vec::new(),
+            joined: false,
             running: true,
             server_port: 0,
             server_address: String::new(),
@@ -154,18 +156,22 @@ impl App {
 
     // create a fake username with random number (Guest1234) for now
     pub fn join_user(&mut self) {
-        let mut message: Vec<u8> = Vec::new();
-        let mut rng = rand::rng();
-        let fakeuser = format!("Guest{}", rng.random_range(1..=1000));
-        let uname_len:u16 = u16::try_from(fakeuser.chars().count()).unwrap();
-        message.push(MessageType::JOIN);
-        message.extend(uname_len.to_le_bytes());
-        message.extend(fakeuser.as_bytes());
+        if !self.joined{
+            let mut message: Vec<u8> = Vec::new();
+            let mut rng = rand::rng();
+            let fakeuser = format!("Guest{}", rng.random_range(1..=10000));
+            let uname_len:u16 = u16::try_from(fakeuser.chars().count()).unwrap();
+            message.push(MessageType::JOIN);
+            message.extend(uname_len.to_le_bytes());
+            message.extend(fakeuser.as_bytes());
 
-        self.tcpstream.write_all(&message).map_err(|err| {
-            error!("Could not send Join message to server. Err: {}", err);
-        }).ok();
-        self.tcpstream.flush().ok();
+            self.tcpstream.write_all(&message).map_err(|err| {
+                error!("Could not send Join message to server. Err: {}", err);
+            }).ok();
+            self.tcpstream.flush().ok();
+            // TODO: Add an 'ack' type message?
+            self.joined = true;
+        }
     }
 
     pub fn read_incomming(&mut self){
@@ -217,20 +223,28 @@ impl App {
                 self.inbuffer.extend_from_slice(&wm_buf[0..]);
             }
             MessageType::USERJOINED => {
+                info!("received userjoin message");
+                // read uuid
                 let mut user_uuid = [0u8;16];
-                let mut namelen = [0u8;2];
-
                 match self.tcpstream.read_exact(&mut user_uuid[..]){
                     Err(e) => error!("Failed to read UUID from USERJOINED message with Err: {}", e),
                     _ => ()
                 }
+                let user_uuid = Uuid::from_u128(u128::from_le_bytes(user_uuid));
+                // read username
+                let mut namelen = [0u8;2];
                 match self.tcpstream.read_exact(&mut namelen[..]) {
                     Err(e) => error!("Failed to read username length from USERJOINED message with Err: {}", e),
                     _ => ()
                 }
-                let username = String::from_utf8(vec![0u8; u16::from_le_bytes(namelen) as usize]).unwrap();
-                let user_uuid = Uuid::from_u128(u128::from_le_bytes(user_uuid));
+                let mut uname_bytes = vec![0u8; u16::from_le_bytes(namelen) as usize];
+                match self.tcpstream.read_exact(&mut uname_bytes[..]) {
+                    Err(e) => error!("Failed to read uname_bytes bytes from USERJOINED message with Err: {}", e),
+                    _ => ()
+                }
+                let username = String::from_utf8(uname_bytes).expect("Could not complete UTF-8 conversion from uname_bytes to String");
                 self.active_users.insert(username, Uuid::from(user_uuid));
+                info!("current active users: {:?}", self.active_users.keys());
             }
             _ => ()
         }
