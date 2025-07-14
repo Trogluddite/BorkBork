@@ -117,7 +117,7 @@ these are their meanings.
 | 1 | inactive |
 | 2 | offline ( may be used to indicate 'left the server') |
 | 3 | DND |
-| 256 | 'extended' status -- used to indicate a complex status type or for future use when more than 255 status types exist |
+| 255 | 'extended' status -- used to indicate a complex status type or for future use when more than 255 status types exist |
 
 ### GETUSERS
 Sent by the client to the server, to request a list of users

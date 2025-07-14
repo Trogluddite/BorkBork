@@ -13,12 +13,21 @@ impl MessageType{
     pub const WELCOME:      u8 = 4;
     pub const EXTENDED:     u8 = 5;
     pub const USERJOINED:   u8 = 6;
-    pub const USERLEFT:     u8 = 7;
+    pub const USERSTATUS:     u8 = 7;
 }
 
 pub struct ExtendedMessageType;
 impl ExtendedMessageType{
     pub const FUTURE: u64 = 0;
+}
+
+pub struct UserStatusType;
+impl UserStatusType{
+    pub const ONLINE:       u8 = 0;
+    pub const IDLE:         u8 = 1;
+    pub const OFFLINE:      u8 = 2;
+    pub const DND:          u8 = 3;
+    pub const EXTENDED:     u8 = 255;
 }
 
 pub enum Message{
@@ -65,9 +74,14 @@ pub enum Message{
         username_len:   u16,
         username:       Vec<u8>,
     },
-    Userleft{
+    UserStatus{
         author:         Arc<TcpStream>,
         message_type:   u8,
         user_id:        Uuid,
+        status_type:    u8,
+        name_len:       u16,
+        desc_len:       u16,
+        username:       Vec<u8>,
+        desc:           Vec<u8>,
     }
 }
