@@ -105,8 +105,8 @@ Replaces unused/unimplemented "USERLEFT" message
 | 17 | User status byte; specify current status of user | uint 8 |
 | 18-19 | user display name length | uint 16 |
 | 20-21 | user description length | uint 16 |
-| 22 - (22 + display name len) | user display name | string |
-| (22 + display name len)+ | user description | string |
+| 22 - (22 + display name len) | user display name | char vector |
+| (22 + display name len)+ | user description | char vector |
 
 #### User status types:
 User statuses are packed in byte 17 of a USERSTATUS message.
