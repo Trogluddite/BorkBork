@@ -75,14 +75,14 @@ Sent by the server after successfully negotiating a client connection.
 | 3+ | welcome message contents | char vector |
 
 ### EXTENDED
-Reserved for future expansion past 256 types of message; may also be used for
+Reserved for future expansion past 256 types of messages; may also be used for
 experimental or non-defined use cases in custom clients and servers.
 
 Extended message types, when used as part of the protocol, must have reserved type IDs
 recorded as a part of the protocol
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
-| 0 | type specifier. Set to 256. | uint 8 |
+| 0 | type specifier. Set to 5. | uint 8 |
 | 1-4 | type specifier for extension | uint 64 |
 | 5+ | content specific to extended message type | various |
 

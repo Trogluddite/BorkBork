@@ -13,7 +13,8 @@ impl MessageType{
     pub const WELCOME:      u8 = 4;
     pub const EXTENDED:     u8 = 5;
     pub const USERJOINED:   u8 = 6;
-    pub const USERSTATUS:     u8 = 7;
+    pub const USERSTATUS:   u8 = 7;
+
 }
 
 pub struct ExtendedMessageType;
