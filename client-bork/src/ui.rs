@@ -72,8 +72,8 @@ impl Widget for &App {
          let users_block = Block::bordered()
             .title(users_title.centered())
             .border_set(border::ROUNDED);
-        let users_str = self.active_users.keys()
-            .map(|s| format!("{}\n", s))
+        let users_str = self.active_users.values()
+            .map(|u| format!(" {}\n", u.displayname))
             .collect::<Vec<_>>()
             .concat();
         let users_text = Paragraph::new(users_str)

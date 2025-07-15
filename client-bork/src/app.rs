@@ -14,18 +14,48 @@ use ratatui::{
 use socket2::{Socket, Domain, Type};
 use uuid::Uuid;
 
-use::common_bork::MessageType;
+use::common_bork::{MessageType, UserStatusType};
 
 
 const SERVER_PORT: u16 = 6556;
 //const SERVER_ADDRESS:&'static str = "164.90.146.27";
 const SERVER_ADDRESS: &'static str = "0.0.0.0";
 
+
+// TODO: should be part of common?
+#[derive(Clone, Debug)]
+pub struct User{
+    pub description:String,
+    pub displayname:String,
+    pub status:     u8,
+    pub uuid:       Uuid,
+}
+impl User{
+    fn new(displayname: String, uuid:Uuid) -> User {
+        User{
+            description: String::from("A nondescript llama"),
+            displayname,
+            status: UserStatusType::OFFLINE,
+            uuid,
+        }
+    }
+    fn set_displayname(&mut self, displayname: String){
+        self.displayname = displayname;
+    }
+    fn set_description(&mut self, description: String){
+        self.description = description;
+    }
+    fn set_status(&mut self, status: u8){
+        self.status = status;
+        // todo: validity check?
+    }
+}
+
 /// Application.
 #[derive(Debug)]
 pub struct App {
     // TODO: we can probably re-use the User struct from the server
-    pub active_users:       BTreeMap<String, Uuid>,
+    pub active_users:       BTreeMap<Uuid, User>,
     pub connected:          bool,
     pub events:             EventHandler,
     pub inbuffer:           Vec<u8>,   //TODO: should be a list of rows to use as message buffer
@@ -39,6 +69,7 @@ pub struct App {
     pub tcpstream:          TcpStream,
     pub username:           String,
     pub user_uuid:          Uuid,
+    pub uuid_update_pending:Vec<Uuid>, // Seems hacky
 }
 
 impl Default for App {
@@ -58,6 +89,7 @@ impl Default for App {
             tcpstream: TcpStream::from(Socket::new(Domain::IPV4, Type::STREAM, None).unwrap()),
             username: String::new(),
             user_uuid: Uuid::new_v4(),
+            uuid_update_pending: Vec::new(),
         }
     }
 }
@@ -84,6 +116,7 @@ impl App {
                     AppEvent::GetUsers => self.get_users(),
                     AppEvent::JoinUser => self.join_user(),
                     AppEvent::Quit => self.quit(),
+                    AppEvent::UpdateUsers => self.update_user_statuses(),
                 },
             }
         }
@@ -100,6 +133,7 @@ impl App {
             KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
             KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
             KeyCode::Char('j' | 'J') => self.events.send(AppEvent::JoinUser),
+            KeyCode::Char('u' | 'U') => self.events.send(AppEvent::UpdateUsers), //fixme: testing
             KeyCode::Char('g' | 'G') => self.events.send(AppEvent::GetUsers),  //FIXME: just
             //testing here; this shouldn't be bound to a key
             _ => {}
@@ -179,16 +213,32 @@ impl App {
 
     pub fn get_users(&mut self){
         if self.connected {
+            info!("sending GETUSERS message");
             let mut message: Vec<u8> = Vec::new();
             message.push(MessageType::GETUSERS);
-            self.tcpstream.write_all(&message).map_err(|err| { 
-               error!("Could not send GETUSERS message to server. Err: {}", err); 
+            self.tcpstream.write_all(&message).map_err(|err| {
+               error!("Could not send GETUSERS message to server. Err: {}", err);
             }).ok();
             self.tcpstream.flush().ok();
-
         }
         else {
             info!("tried to send GETUSERS message, but the client is not connected to the server");
+        }
+    }
+
+    // TODO: periodically push UUID's back into uuid_update_pending
+    // to poll for updates?
+    pub fn update_user_statuses(&mut self){
+        info!("triggerred update_user_statuses");
+        for u in self.uuid_update_pending.iter() {
+            let mut message: Vec<u8> = Vec::new();
+            message.push(MessageType::GETUSERSTATUS);
+            message.extend(u.to_bytes_le());
+            self.tcpstream.write_all(&message).map_err(|err| {
+                error!("could not send GETUSERSTATUS message to server. Err: {}", err);
+            }).ok();
+            self.tcpstream.flush().ok();
+            info!("Updating for user: {}", u);
         }
     }
 
@@ -225,6 +275,7 @@ impl App {
                 self.server_subminor_ver = u16::from_le_bytes(subminor);
             }
             MessageType::WELCOME => {
+                info!("Received WELCOME message");
                 // this message type has variable length, so, we determine that length
                 // and read that many bytes
                 let mut len = [0u8;2];
@@ -241,14 +292,14 @@ impl App {
                 self.inbuffer.extend_from_slice(&wm_buf[0..]);
             }
             MessageType::USERJOINED => {
-                info!("received userjoin message");
+                info!("received USERJOINED message");
                 // read uuid
                 let mut user_uuid = [0u8;16];
                 match self.tcpstream.read_exact(&mut user_uuid[..]){
                     Err(e) => error!("Failed to read UUID from USERJOINED message with Err: {}", e),
                     _ => ()
                 }
-                let user_uuid = Uuid::from_u128(u128::from_le_bytes(user_uuid));
+                let user_uuid = Uuid::from_bytes_le(user_uuid);
                 // read username
                 let mut namelen = [0u8;2];
                 match self.tcpstream.read_exact(&mut namelen[..]) {
@@ -261,10 +312,95 @@ impl App {
                     _ => ()
                 }
                 let username = String::from_utf8(uname_bytes).expect("Could not complete UTF-8 conversion from uname_bytes to String");
-                self.active_users.insert(username, Uuid::from(user_uuid));
+                self.active_users.insert(user_uuid.clone(), User::new(username.clone(), user_uuid.clone()));
                 info!("current active users: {:?}", self.active_users.keys());
             }
-            _ => ()
+            MessageType::USERLIST => {
+                info!("Received USERLIST message");
+                let mut num_users = [0u8;2];
+                match self.tcpstream.read_exact(&mut num_users[..]) {
+                    Err(e) => error!("Failed to read num_users from USERLIST message with Err: {}", e),
+                    _ => ()
+                }
+                let num_users = u16::from_le_bytes(num_users);
+                let mut uuid_buff = [0u8;16]; // consume uuid's in 16-byte chunks
+                for i in 0..num_users {
+                    match self.tcpstream.read_exact(&mut uuid_buff[..]){
+                        Err(e) => error!("Could not read 16 bytes for UUID from USERLIST message, on item number {} with Err: {}", i, e),
+                        _ => ()
+                    };
+                    self.uuid_update_pending.push(Uuid::from_bytes_le(uuid_buff));
+                }
+            }
+            MessageType::USERSTATUS => {
+                info!("Received USERSTATUS message");
+                // uuid
+                let mut uuid_buf = [0u8;16];
+                match self.tcpstream.read_exact(&mut uuid_buf[..]) {
+                    Err(e) => error!("Failed to read UUID bytes from USERSTATATUS message, with Err: {}", e),
+                    _ => ()
+                }
+                let user_uuid = Uuid::from_bytes_le(uuid_buf);
+
+                // status code
+                let mut status_byte = [0u8;1];
+                match self.tcpstream.read_exact(&mut status_byte[..]) {
+                    Err(e) => error!("could not read status byte from USERSTATUS message with Err: {}", e),
+                    _ => ()
+                };
+                let status_code = u8::from_le_bytes(status_byte);
+
+                // display name length
+                let mut namelen_buf = [0u8;2];
+                match self.tcpstream.read_exact(&mut namelen_buf[..]) {
+                    Err(e) => error!("Could not read name length from USERSTATUS message with Err: {}", e),
+                    _ => ()
+                };
+                let namelen = u16::from_le_bytes(namelen_buf);
+
+                // description length
+                let mut desclen_buf = [0u8;2];
+                match self.tcpstream.read_exact(&mut desclen_buf[..]) {
+                    Err(e) => error!("Could not read description length from USERSTATUS message with Err: {}", e),
+                    _ => ()
+                };
+                let desclen = u16::from_le_bytes(desclen_buf);
+
+                // displayname
+                let mut uname_bytes = vec![0u8; namelen as usize];
+                match self.tcpstream.read_exact(&mut uname_bytes[..]){
+                    Err(e) => error!("Could not read username bytes from USERSTATUS message with Err: {}", e),
+                    _ => ()
+                }
+                let username = String::from_utf8(uname_bytes).expect("Could not complete UTF-8 conversion from uname_bytes to String");
+
+                // description
+                let mut description = String::new();
+                if desclen > 0 {
+                    let mut desc_bytes = vec![0u8; desclen as usize];
+                    match self.tcpstream.read_exact(&mut desc_bytes[..]) {
+                        Err(e) => error!("Could not read user description from USERSTATUS message, with Err: {}", e),
+                        _ => ()
+                    };
+                    description = String::from_utf8(desc_bytes).expect("Could not complete UTF-8 conversion from desc_bytes to String");
+                }
+
+                // if this user already exists on the server, update it
+                // otherwise, ignore this message (we still need to remove the bytes, above)
+                // TOOD: Maybe it makes more sense to deprecate the USERJOINED message
+                // and collapse into a USERSTATUS? IdK.
+                match self.active_users.get_mut(&user_uuid){
+                    Some(u) => {
+                        u.set_status(status_code);
+                        u.set_displayname(username);
+                        if desclen > 0 { u.set_description(description); }
+                    }
+                    None => ()
+                };
+            }
+            _ => {
+                info!("Received unknown message type with ID: {}", mtype[0]);
+            }
         }
     }
 }

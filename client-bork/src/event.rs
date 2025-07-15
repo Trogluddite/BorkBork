@@ -25,6 +25,7 @@ pub enum AppEvent {
     GetUsers,
     JoinUser,
     Quit,
+    UpdateUsers,
 }
 
 /// Terminal event handler.
