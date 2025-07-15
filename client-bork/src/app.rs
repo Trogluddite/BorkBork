@@ -81,6 +81,7 @@ impl App {
                 Event::App(app_event) => match app_event {
                     AppEvent::ConnectServer => self.connect_to_server(SERVER_ADDRESS, SERVER_PORT),
                     AppEvent::DisconnectServer => self.disconnect_server(),
+                    AppEvent::GetUsers => self.get_users(),
                     AppEvent::JoinUser => self.join_user(),
                     AppEvent::Quit => self.quit(),
                 },
@@ -99,6 +100,8 @@ impl App {
             KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
             KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
             KeyCode::Char('j' | 'J') => self.events.send(AppEvent::JoinUser),
+            KeyCode::Char('g' | 'G') => self.events.send(AppEvent::GetUsers),  //FIXME: just
+            //testing here; this shouldn't be bound to a key
             _ => {}
         }
         Ok(())
@@ -171,6 +174,21 @@ impl App {
             self.tcpstream.flush().ok();
             // TODO: Add an 'ack' type message?
             self.joined = true;
+        }
+    }
+
+    pub fn get_users(&mut self){
+        if self.connected {
+            let mut message: Vec<u8> = Vec::new();
+            message.push(MessageType::GETUSERS);
+            self.tcpstream.write_all(&message).map_err(|err| { 
+               error!("Could not send GETUSERS message to server. Err: {}", err); 
+            }).ok();
+            self.tcpstream.flush().ok();
+
+        }
+        else {
+            info!("tried to send GETUSERS message, but the client is not connected to the server");
         }
     }
 

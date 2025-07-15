@@ -20,8 +20,9 @@ pub enum Event {
 
 #[derive(Clone, Debug)]
 pub enum AppEvent {
-    DisconnectServer,
     ConnectServer,
+    DisconnectServer,
+    GetUsers,
     JoinUser,
     Quit,
 }

@@ -204,7 +204,7 @@ fn handle_client(
         match message_type[0]{
             MessageType::JOIN => {
                 info!("received JOIN message from {}", stream.peer_addr().unwrap());
-                let mut len = [0u8, 0u8];
+                let mut len = [0u8;2]; 
                 match reader.read_exact(&mut len){
                     Err(e) => error!("couldn't read username length from JOIN message. Err was: {}", e),
                     _ => (),
@@ -241,6 +241,21 @@ fn handle_client(
                     error!("couldn't send USERJOINED message to MPSC sender. Err was {}",err);
                 })?;
 
+            }
+            MessageType::GETUSERS => {
+                info!("received GETUSERS message from {}", stream.peer_addr().unwrap());
+                let mut uuid_list: Vec<Uuid> = Vec::new();
+                {
+                    let umap = server_state.lock().unwrap().user_map.iter();
+                    for (uname, user) in server_state.lock().unwrap().user_map.iter(){
+                        if user.online == true{
+                            uuid_list.push(user.uuid);
+                        }
+                    }
+                }
+                let num_users = uuid_list.iter().count();
+                debug!("uuid_list: {:?}", uuid_list);
+                debug!("uuid_count: {:?}", num_users);
             }
             _ => {
                 info!(
