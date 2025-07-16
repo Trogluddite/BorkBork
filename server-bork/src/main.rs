@@ -145,6 +145,19 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 })?;
                 author.as_ref().flush();
             }
+            Message::UserList { author, message_type, uuid_list } => {
+                let mut message: Vec<u8> = Vec::new();
+                let len:u16 = u16::try_from(uuid_list.len()).expect("Could not get u16 from uuid_list.len() (a usize downcast)");
+                message.push(message_type);
+                message.extend(len.to_le_bytes());
+                for u in uuid_list.iter(){
+                    message.extend(u.to_bytes_le());
+                }
+                author.as_ref().write_all(&message).map_err(|err| {
+                    error!("MPSC couldn't send UserList message to client, with error {}", err);
+                })?;
+                author.as_ref().flush();
+            }
             _ => {
                 info!("MPSC handler received unknown mesage type");
             }
@@ -204,7 +217,7 @@ fn handle_client(
         match message_type[0]{
             MessageType::JOIN => {
                 info!("received JOIN message from {}", stream.peer_addr().unwrap());
-                let mut len = [0u8;2]; 
+                let mut len = [0u8;2];
                 match reader.read_exact(&mut len){
                     Err(e) => error!("couldn't read username length from JOIN message. Err was: {}", e),
                     _ => (),
@@ -253,9 +266,14 @@ fn handle_client(
                         }
                     }
                 }
-                let num_users = uuid_list.iter().count();
-                debug!("uuid_list: {:?}", uuid_list);
-                debug!("uuid_count: {:?}", num_users);
+                let userlist = Message::UserList {
+                    author: stream.clone(),
+                    message_type: MessageType::USERLIST,
+                    uuid_list: uuid_list,
+                };
+                message.send(userlist).map_err(|err| {
+                    error!("couldn't send USERLIST message to MPSC sender. Err was: {}", err);
+                })?;
             }
             _ => {
                 info!(

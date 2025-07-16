@@ -234,6 +234,7 @@ impl App {
             let mut message: Vec<u8> = Vec::new();
             message.push(MessageType::GETUSERSTATUS);
             message.extend(u.to_bytes_le());
+            info!("Sending GETUSERSTATUS request for user: {}", u);
             self.tcpstream.write_all(&message).map_err(|err| {
                 error!("could not send GETUSERSTATUS message to server. Err: {}", err);
             }).ok();
