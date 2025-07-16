@@ -229,7 +229,7 @@ impl App {
     // TODO: periodically push UUID's back into uuid_update_pending
     // to poll for updates?
     pub fn update_user_statuses(&mut self){
-        info!("triggerred update_user_statuses");
+        info!("triggerred update_user_statuses; update pending list is: {:?}", self.uuid_update_pending);
         for u in self.uuid_update_pending.iter() {
             let mut message: Vec<u8> = Vec::new();
             message.push(MessageType::GETUSERSTATUS);
@@ -291,30 +291,6 @@ impl App {
                     _ => ()
                 }
                 self.inbuffer.extend_from_slice(&wm_buf[0..]);
-            }
-            MessageType::USERJOINED => {
-                info!("received USERJOINED message");
-                // read uuid
-                let mut user_uuid = [0u8;16];
-                match self.tcpstream.read_exact(&mut user_uuid[..]){
-                    Err(e) => error!("Failed to read UUID from USERJOINED message with Err: {}", e),
-                    _ => ()
-                }
-                let user_uuid = Uuid::from_bytes_le(user_uuid);
-                // read username
-                let mut namelen = [0u8;2];
-                match self.tcpstream.read_exact(&mut namelen[..]) {
-                    Err(e) => error!("Failed to read username length from USERJOINED message with Err: {}", e),
-                    _ => ()
-                }
-                let mut uname_bytes = vec![0u8; u16::from_le_bytes(namelen) as usize];
-                match self.tcpstream.read_exact(&mut uname_bytes[..]) {
-                    Err(e) => error!("Failed to read uname_bytes bytes from USERJOINED message with Err: {}", e),
-                    _ => ()
-                }
-                let username = String::from_utf8(uname_bytes).expect("Could not complete UTF-8 conversion from uname_bytes to String");
-                self.active_users.insert(user_uuid.clone(), User::new(username.clone(), user_uuid.clone()));
-                info!("current active users: {:?}", self.active_users.keys());
             }
             MessageType::USERLIST => {
                 info!("Received USERLIST message");
@@ -386,18 +362,23 @@ impl App {
                     description = String::from_utf8(desc_bytes).expect("Could not complete UTF-8 conversion from desc_bytes to String");
                 }
 
-                // if this user already exists on the server, update it
-                // otherwise, ignore this message (we still need to remove the bytes, above)
-                // TOOD: Maybe it makes more sense to deprecate the USERJOINED message
-                // and collapse into a USERSTATUS? IdK.
                 match self.active_users.get_mut(&user_uuid){
-                    Some(u) => {
-                        u.set_status(status_code);
-                        u.set_displayname(username);
-                        if desclen > 0 { u.set_description(description); }
-                    }
-                    None => ()
-                };
+                    // update existing user
+                    Some(eu) => {
+                        eu.set_status(status_code);
+                        eu.set_displayname(username);
+                        if desclen > 0 { eu.set_description(description); }
+                    },
+                    // create new user
+                    None => {
+                        let mut nu:User = User::new(username.clone(), user_uuid.clone());
+                        nu.set_status(status_code);
+                        nu.set_displayname(username);
+                        if desclen > 0 { nu.set_description(description); }
+                        self.active_users.insert(user_uuid.clone(), Clone::clone(&nu));
+                        info!("current active users: {:?}", self.active_users.keys());
+                    },
+                }
             }
             _ => {
                 info!("Received unknown message type with ID: {}", mtype[0]);
