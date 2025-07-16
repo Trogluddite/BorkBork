@@ -137,17 +137,6 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 })?;
                 author.as_ref().flush();
             }
-            Message::UserJoined { author, message_type, user_id, username_len, username } => {
-                let mut message: Vec<u8> = Vec::new();
-                message.push(message_type);
-                message.extend(user_id.to_bytes_le());      //uuid
-                message.extend(username_len.to_le_bytes()); //u16
-                message.extend(username);
-                author.as_ref().write_all(&message).map_err(|err| {
-                    error!("MPSC couldn't send UserJoined message to client, with error {}", err);
-                })?;
-                author.as_ref().flush();
-            }
             Message::UserList { author, message_type, uuid_list } => {
                 let mut message: Vec<u8> = Vec::new();
                 let len:u16 = u16::try_from(uuid_list.len()).expect("Could not get u16 from uuid_list.len() (a usize downcast)");
@@ -162,6 +151,7 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 author.as_ref().flush();
             }
             Message::UserStatus { author, message_type, user_id, status_type, name_len, desc_len, username, desc } => {
+                info!("Sending UserStatus message");
                 let mut message: Vec<u8> = Vec::new();
                 message.push(message_type);
                 message.extend(user_id.to_bytes_le());
@@ -169,7 +159,7 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 message.extend(name_len.to_le_bytes());
                 message.extend(desc_len.to_le_bytes());
                 message.extend(username);
-                message.extend(description);
+                message.extend(desc);
                 author.as_ref().write_all(&message).map_err(|err| {
                     error!("MPSC couldn't send UserStatus message to client, with Err: {}", err);
                 })?;
@@ -234,55 +224,62 @@ fn handle_client(
         match message_type[0]{
             MessageType::JOIN => {
                 info!("received JOIN message from {}", stream.peer_addr().unwrap());
-                let mut len = [0u8;2];
-                match reader.read_exact(&mut len){
+                let mut len_buf = [0u8;2];
+                match reader.read_exact(&mut len_buf[..]){
                     Err(e) => error!("couldn't read username length from JOIN message. Err was: {}", e),
                     _ => (),
                 }
-                let len:u16 = u16::from_le_bytes(len);
-                let mut uname_buf = vec![0; len as usize];
-                match reader.read_exact(&mut uname_buf) {
-                    Err(e) => error!("couldn't read {} bytes (expected for Username length)", len),
-                    _ => (),
-                }
-                //FIXME: JOIN should index on UUID
-                let uname = String::from_utf8(uname_buf.clone()).unwrap();
-                let uuid = Uuid::new_v4();
-                {
-                    let mut ulss = server_state.lock().unwrap();
-                    match ulss.user_map.get(&uuid) {
-                        Some(u) => {
-                            info!("User with name {} already exists on the server; nothing to do", uname);
-                       },
-                        None => {
-                            info!("attempting to add user with name {} to server", uname);
-                            let mut u : User = User::new(Clone::clone(&uname), Clone::clone(&uuid));
-                            ulss.add_user(&mut u);
-                       },
-                    }
-                    debug!("Current user list is: {:?}", ulss.user_map.keys());
-                }
-                let userjoin = Message::UserJoined {
-                    author: stream.clone(),
-                    message_type: MessageType::USERJOINED,
-                    user_id: (server_state.lock().unwrap().user_map.get(&uuid).unwrap() as &User).uuid,
-                    username_len: len,
-                    username: uname_buf.clone(),
-                };
-                message.send(userjoin).map_err(|err|{
-                    error!("couldn't send USERJOINED message to MPSC sender. Err was {}",err);
-                })?;
+                let len:u16 = u16::from_le_bytes(len_buf);
 
+                let mut uuid_buf = [0u8;16];
+                match reader.read_exact(&mut uuid_buf[..]){
+                    Err(e) => error!("Couldn't read uuid from JOIN message. Err was: {}", e),
+                    _ => ()
+                };
+                let mut uuid = Uuid::from_bytes_le(uuid_buf);
+
+                let mut uname_buf = vec![0; len as usize];
+                match reader.read_exact(&mut uname_buf[..]) {
+                    Err(e) => error!("couldn't read the username from the JOIN message. Err was: {}", e),
+                    _ => ()
+                }
+                let uname = String::from_utf8(uname_buf.clone()).unwrap();
+
+                let mut state_guard = server_state.lock().unwrap();
+                let mut dummy_user:User = User::new(String::from(""), Uuid::from_u128(0));
+                let u:&User = {
+                    match state_guard.user_map.get(&uuid) {
+                        Some(u) => &u,
+                        None => {
+                            info!("adding user with name {} to server", uname);
+                            dummy_user.uuid = Uuid::new_v4();
+                            dummy_user.status = UserStatusType::ONLINE;
+                            dummy_user.displayname = uname;
+                            state_guard.add_user(&mut dummy_user);
+                            &dummy_user
+                        }
+                    }
+                };
+                let userstatus = Message::UserStatus {
+                    author: stream.clone(),
+                    message_type: MessageType::USERSTATUS,
+                    user_id: u.uuid,
+                    status_type: UserStatusType::ONLINE,
+                    name_len: u16::try_from(u.displayname.len()).expect("displayname.len() could not be cast to u16"),
+                    desc_len: u16::try_from(u.description.len()).expect("disolayname.len() could not be cast to u16"),
+                    username: u.displayname.as_bytes().to_vec(),
+                    desc: u.description.as_bytes().to_vec(),
+                };
+                message.send(userstatus).map_err(|err|{
+                    error!("couldn't send USERSTATUS message to MPSC sender. Err was {}",err);
+                })?;
             }
             MessageType::GETUSERS => {
                 info!("received GETUSERS message from {}", stream.peer_addr().unwrap());
                 let mut uuid_list: Vec<Uuid> = Vec::new();
-                {
-                    let umap = server_state.lock().unwrap().user_map.iter();
-                    for (uname, user) in server_state.lock().unwrap().user_map.iter(){
-                        if user.status != UserStatusType::OFFLINE {
-                            uuid_list.push(user.uuid);
-                        }
+                for (uuid, user) in server_state.lock().unwrap().user_map.iter(){
+                    if user.status != UserStatusType::OFFLINE && user.status != UserStatusType::NOSUCHUSER {
+                        uuid_list.push(user.uuid);
                     }
                 }
                 let userlist = Message::UserList {
@@ -302,9 +299,18 @@ fn handle_client(
                     _ => (),
                 }
                 let uuid = Uuid::from_bytes_le(uuid_buf);
-                let u : &User = server_state.lock().unwrap().user_map
-                    .get(&uuid)
-                    .as_ref().expect("Could not get reference for server_state.user_map");
+
+                // Get reference to User; read values of User to populate message
+                // Dummy user fills in values for NOSUCHUSER responses
+                let mut dummy_user:User = User::new(String::from(""), Uuid::from_u128(0));
+                dummy_user.status = UserStatusType::NOSUCHUSER;
+                let state_guard = server_state.lock().unwrap();
+                let u:&User = {
+                    match state_guard.user_map.get(&uuid) {
+                        Some(u) => &u,
+                        None => &dummy_user,
+                    }
+                };
                 let userstatus = Message::UserStatus {
                     author: stream.clone(),
                     message_type: MessageType::USERSTATUS,
