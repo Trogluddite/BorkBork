@@ -197,9 +197,11 @@ impl App {
             let mut message: Vec<u8> = Vec::new();
             let mut rng = rand::rng();
             let fakeuser = format!("Guest{}", rng.random_range(1..=10000));
+            let fakeuuid = Uuid::from_u128(0); // expect the server to generate a UUID
             let uname_len:u16 = u16::try_from(fakeuser.chars().count()).unwrap();
             message.push(MessageType::JOIN);
             message.extend(uname_len.to_le_bytes());
+            message.extend(fakeuuid.to_bytes_le());
             message.extend(fakeuser.as_bytes());
 
             self.tcpstream.write_all(&message).map_err(|err| {
