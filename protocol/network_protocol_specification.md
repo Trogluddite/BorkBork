@@ -1,6 +1,6 @@
 # BorkBork Network Application Protocol
-**VERSION: 0.0.5**\
-**14JULY2025**
+**VERSION: 0.0.6**\
+**16JULY2025**
 
 ## Overview
 The BorkBork protocol is an application-layer network contract for use with simple client-server model chat services.
@@ -20,7 +20,7 @@ The BorkBork protocol is an application-layer network contract for use with simp
 | VERSION | 3 | 7 bytes |
 | WELCOME | 4 | variable |
 | EXTENDED | 5 | variable |
-| USERJOINED | 6 | variable |
+| DEPRECATED | 6 | variable |
 | USERSTATUS | 7 | 130 bytes |
 | GETUSERS | 8 | 1 byte |
 | USERLIST | 9 | variable |
@@ -47,7 +47,8 @@ support authenticated users
 | ------ | ------------------------------ | ----------------- |
 | 0 | type specifier, set to 1 | uint 8 |
 | 1-2 | username length | uint 16 |
-| 3+ | username | char vector |
+| 3-19 | UUID -- sent by clients if they already have a user. set to 0 otherwise. | uint 128 |
+| 20+ | username | char vector |
 
 ### LEAVE
 Sent by the client to indicate that they'd like to leave the server
@@ -86,8 +87,10 @@ recorded as a part of the protocol
 | 1-4 | type specifier for extension | uint 64 |
 | 5+ | content specific to extended message type | various |
 
-### USERJOINED
-Sent by the server, to clients, when a user has joined the server
+### DEPRECATED1
+DEPRECATED / Do not use
+code 6 was previously used for the USERJOINED message, which as been removed
+in favor of using the USERSTATUS message
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
 | 0 | type specifier. Set to 6. | uint 8 |

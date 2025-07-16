@@ -12,7 +12,7 @@ impl MessageType{
     pub const VERSION:      u8 = 3;
     pub const WELCOME:      u8 = 4;
     pub const EXTENDED:     u8 = 5;
-    pub const USERJOINED:   u8 = 6;
+    pub const DEPRECATED1:  u8 = 6;
     pub const USERSTATUS:   u8 = 7;
     pub const GETUSERS:     u8 = 8;
     pub const USERLIST:     u8 = 9;
