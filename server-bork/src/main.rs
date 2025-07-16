@@ -275,6 +275,9 @@ fn handle_client(
                     error!("couldn't send USERLIST message to MPSC sender. Err was: {}", err);
                 })?;
             }
+            MessageType::GETUSERSTATUS => {
+                debug!("Plz to be responding");
+            }
             _ => {
                 info!(
                     "the client sent an unknown message type, with ID: {}; ignoring message contents",
