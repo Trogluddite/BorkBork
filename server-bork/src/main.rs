@@ -1,5 +1,6 @@
 #![allow(unused)] //FIXME: WIP
 
+use common_bork::UserStatusType;
 use log::{debug, error, info, LevelFilter};
 use std::collections::BTreeMap;
 use std::io::{BufReader, Read, Write};
@@ -31,24 +32,26 @@ WELCOME TO BORK BORK, A PLACE
     FOR LAKEDOGS TO BORK ABOUT
 ";
 
-
-#[derive(Clone)]
+// TODO: should probably be in common-bork
+#[derive(Clone, Debug)]
 struct User{
+    description:    String,
     displayname:    String,
-    online:         bool,
+    status:         u8,
     uuid:           Uuid,
 }
 impl User{
-    fn new(displayname: String) -> User{
+    fn new(displayname: String, uuid:Uuid) -> User{
         User{
+            description: String::from("A nondescript llama"),
             displayname,
-            online : true,
-            uuid : Uuid::new_v4(),
+            status : UserStatusType::OFFLINE,
+            uuid,
         }
     }
 }
 struct ServerState{
-    user_map: BTreeMap<String, User>,
+    user_map: BTreeMap<Uuid, User>,
 }
 impl ServerState{
     fn new() -> ServerState{
@@ -57,7 +60,7 @@ impl ServerState{
         }
     }
     fn add_user(&mut self, user: &mut User){
-        self.user_map.insert(Clone::clone(&user.displayname), Clone::clone(user));
+        self.user_map.insert(Clone::clone(&user.uuid), Clone::clone(user));
     }
 }
 
@@ -158,6 +161,20 @@ fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Resul
                 })?;
                 author.as_ref().flush();
             }
+            Message::UserStatus { author, message_type, user_id, status_type, name_len, desc_len, username, desc } => {
+                let mut message: Vec<u8> = Vec::new();
+                message.push(message_type);
+                message.extend(user_id.to_bytes_le());
+                message.extend(status_type.to_le_bytes());
+                message.extend(name_len.to_le_bytes());
+                message.extend(desc_len.to_le_bytes());
+                message.extend(username);
+                message.extend(description);
+                author.as_ref().write_all(&message).map_err(|err| {
+                    error!("MPSC couldn't send UserStatus message to client, with Err: {}", err);
+                })?;
+                author.as_ref().flush();
+            }
             _ => {
                 info!("MPSC handler received unknown mesage type");
             }
@@ -228,16 +245,18 @@ fn handle_client(
                     Err(e) => error!("couldn't read {} bytes (expected for Username length)", len),
                     _ => (),
                 }
+                //FIXME: JOIN should index on UUID
                 let uname = String::from_utf8(uname_buf.clone()).unwrap();
+                let uuid = Uuid::new_v4();
                 {
                     let mut ulss = server_state.lock().unwrap();
-                    match ulss.user_map.get(&uname) {
+                    match ulss.user_map.get(&uuid) {
                         Some(u) => {
                             info!("User with name {} already exists on the server; nothing to do", uname);
                        },
                         None => {
                             info!("attempting to add user with name {} to server", uname);
-                            let mut u : User = User::new(Clone::clone(&uname));
+                            let mut u : User = User::new(Clone::clone(&uname), Clone::clone(&uuid));
                             ulss.add_user(&mut u);
                        },
                     }
@@ -246,7 +265,7 @@ fn handle_client(
                 let userjoin = Message::UserJoined {
                     author: stream.clone(),
                     message_type: MessageType::USERJOINED,
-                    user_id: (server_state.lock().unwrap().user_map.get(&uname).unwrap() as &User).uuid,
+                    user_id: (server_state.lock().unwrap().user_map.get(&uuid).unwrap() as &User).uuid,
                     username_len: len,
                     username: uname_buf.clone(),
                 };
@@ -261,7 +280,7 @@ fn handle_client(
                 {
                     let umap = server_state.lock().unwrap().user_map.iter();
                     for (uname, user) in server_state.lock().unwrap().user_map.iter(){
-                        if user.online == true{
+                        if user.status != UserStatusType::OFFLINE {
                             uuid_list.push(user.uuid);
                         }
                     }
@@ -276,7 +295,29 @@ fn handle_client(
                 })?;
             }
             MessageType::GETUSERSTATUS => {
-                debug!("Plz to be responding");
+                info!("recieved GETUSERSTATUS message from {}", stream.peer_addr().unwrap());
+                let mut uuid_buf = [0u8;16];
+                match reader.read_exact(&mut uuid_buf[..]) {
+                    Err(e) => error!("could not read 16 bytes for UUID from GETUSERSTATUS message with Err: {}", e),
+                    _ => (),
+                }
+                let uuid = Uuid::from_bytes_le(uuid_buf);
+                let u : &User = server_state.lock().unwrap().user_map
+                    .get(&uuid)
+                    .as_ref().expect("Could not get reference for server_state.user_map");
+                let userstatus = Message::UserStatus {
+                    author: stream.clone(),
+                    message_type: MessageType::USERSTATUS,
+                    user_id: uuid,
+                    status_type: u.status,
+                    name_len: u16::try_from(u.displayname.len()).expect("displayname.len() could not be cast to u16"),
+                    desc_len: u16::try_from(u.description.len()).expect("disolayname.len() could not be cast to u16"),
+                    username: u.displayname.as_bytes().to_vec(),
+                    desc: u.description.as_bytes().to_vec(),
+                };
+                message.send(userstatus).map_err(|err|{
+                    error!("couldn't send USERSTATUS message to MPSC sender. Err was: {}", err);
+                })?;
             }
             _ => {
                 info!(
