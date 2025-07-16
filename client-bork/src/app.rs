@@ -132,10 +132,6 @@ impl App {
             }
             KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
             KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
-            KeyCode::Char('j' | 'J') => self.events.send(AppEvent::JoinUser),
-            KeyCode::Char('u' | 'U') => self.events.send(AppEvent::UpdateUsers), //fixme: testing
-            KeyCode::Char('g' | 'G') => self.events.send(AppEvent::GetUsers),  //FIXME: just
-            //testing here; this shouldn't be bound to a key
             _ => {}
         }
         Ok(())
@@ -174,7 +170,8 @@ impl App {
         self.tcpstream.set_read_timeout(one_hundred_millis)
             .expect("set_read_timeout call failed");
         self.connected = true;
-
+        self.events.send(AppEvent::JoinUser);
+        self.events.send(AppEvent::GetUsers);
         info!("Connected to server {}:{}", ip, port);
     }
 
@@ -310,6 +307,7 @@ impl App {
                     };
                     self.uuid_update_pending.push(Uuid::from_bytes_le(uuid_buff));
                 }
+                if num_users > 0 { self.events.send(AppEvent::UpdateUsers); }
             }
             MessageType::USERSTATUS => {
                 info!("Received USERSTATUS message");
