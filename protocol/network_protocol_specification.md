@@ -1,5 +1,5 @@
 # BorkBork Network Application Protocol
-**VERSION: 0.0.4**\
+**VERSION: 0.0.5**\
 **14JULY2025**
 
 ## Overview
@@ -117,6 +117,7 @@ these are their meanings.
 | 1 | inactive |
 | 2 | offline ( may be used to indicate 'left the server') |
 | 3 | DND |
+| 4 | no such user (should be sent in response to a GETUSERSTATUS request for a non-existent user) |
 | 255 | 'extended' status -- used to indicate a complex status type or for future use when more than 255 status types exist |
 
 ### GETUSERS

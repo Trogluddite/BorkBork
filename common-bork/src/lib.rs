@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::net::TcpStream;
 use uuid::Uuid;
 
-// Matches BorkBork protocol version 0.0.4
+// Matches BorkBork protocol version 0.0.5
 // https://github.com/Trogluddite/BorkBork/blob/main/protocol/network_protocol_specification.md
 pub struct MessageType;
 impl MessageType{
@@ -30,6 +30,7 @@ impl UserStatusType{
     pub const IDLE:         u8 = 1;
     pub const OFFLINE:      u8 = 2;
     pub const DND:          u8 = 3;
+    pub const NOSUCHUSER:   u8 = 4;
     pub const EXTENDED:     u8 = 255;
 }
 
