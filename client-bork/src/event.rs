@@ -12,6 +12,7 @@ const TICK_FPS: f64 = 30.0;
 pub enum Event {
     /// An event that is emitted on a regular schedule.
     Tick,
+    SlowTick,
     /// Crossterm events are emitted by the terminal.
     Crossterm(CrosstermEvent),
     // custom events specific to the application
@@ -23,6 +24,7 @@ pub enum AppEvent {
     ConnectServer,
     DisconnectServer,
     GetUsers,
+    LeaveUser,
     JoinUser,
     Quit,
     UpdateUsers,
@@ -87,10 +89,13 @@ impl EventTask {
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
+        let slow_rate = Duration::from_secs_f32(5.0);
         let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
+        let mut slowtick = tokio::time::interval(slow_rate);
         loop {
             let tick_delay = tick.tick();
+            let slow_delay = slowtick.tick();
             let crossterm_event = reader.next().fuse();
             tokio::select! {
               _ = self.sender.closed() => {
@@ -98,6 +103,9 @@ impl EventTask {
               }
               _ = tick_delay => {
                 self.send(Event::Tick);
+              }
+              _ = slow_delay => {
+                self.send(Event::SlowTick);
               }
               Some(Ok(evt)) = crossterm_event => {
                 self.send(Event::Crossterm(evt));

@@ -8,6 +8,8 @@ use ratatui::{
     widgets::{Block, Borders, BorderType, Paragraph, Widget},
 };
 
+use::common_bork::UserStatusType;
+
 use crate::app::App;
 
 impl Widget for &App {
@@ -39,7 +41,7 @@ impl Widget for &App {
             format!("{}", self.server_address).cyan(),
             " | ".into(),
             "Username: ".gray().bold(),
-            "Guest".cyan(),
+            format!("{}",self.username).cyan(),
             " | ".into(),
             "Status: ".gray().bold(),
             {if self.connected == true {"Online".green()} else {"Offline".red()}},
@@ -73,6 +75,7 @@ impl Widget for &App {
             .title(users_title.centered())
             .border_set(border::ROUNDED);
         let users_str = self.active_users.values()
+            .filter(|u| u.status != UserStatusType::OFFLINE)
             .map(|u| format!(" {}\n", u.displayname))
             .collect::<Vec<_>>()
             .concat();

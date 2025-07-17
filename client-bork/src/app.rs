@@ -106,6 +106,7 @@ impl App {
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
             match self.events.next().await? {
                 Event::Tick => self.tick(),
+                Event::SlowTick => self.slow_tick(),
                 Event::Crossterm(event) => match event {
                     crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
                     _ => {}
@@ -114,6 +115,7 @@ impl App {
                     AppEvent::ConnectServer => self.connect_to_server(SERVER_ADDRESS, SERVER_PORT),
                     AppEvent::DisconnectServer => self.disconnect_server(),
                     AppEvent::GetUsers => self.get_users(),
+                    AppEvent::LeaveUser => self.leave_user(),
                     AppEvent::JoinUser => self.join_user(),
                     AppEvent::Quit => self.quit(),
                     AppEvent::UpdateUsers => self.update_user_statuses(),
@@ -132,6 +134,7 @@ impl App {
             }
             KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
             KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
+            KeyCode::Char('l' | 'L') => self.events.send(AppEvent::LeaveUser),
             _ => {}
         }
         Ok(())
@@ -149,6 +152,21 @@ impl App {
 
             if peeklen > 0 {
                 self.read_incomming();
+            }
+        }
+    }
+
+    pub fn slow_tick(&mut self){
+        if self.connected {
+            self.get_users();
+            for uuid in self.active_users.keys(){
+                let mut message: Vec<u8> = Vec::new();
+                message.push(MessageType::GETUSERSTATUS);
+                message.extend(uuid.to_bytes_le());
+                self.tcpstream.write_all(&message).map_err(|err| {
+                    error!("Could not send GETUSERSTATUS message to server. Err: {}", err);
+                }).ok();
+                self.tcpstream.flush().ok();
             }
         }
     }
@@ -176,6 +194,7 @@ impl App {
     }
 
     pub fn disconnect_server(&mut self) {
+        self.events.send(AppEvent::LeaveUser);
         match self.tcpstream.shutdown(Shutdown::Both) {
             Err(e) => error!("failed to shutdown TCPStream, with Err: {}", e),
             _ => ()
@@ -191,11 +210,15 @@ impl App {
     // create a fake username with random number (Guest1234) for now
     pub fn join_user(&mut self) {
         if !self.joined{
-            let mut message: Vec<u8> = Vec::new();
             let mut rng = rand::rng();
             let fakeuser = format!("Guest{}", rng.random_range(1..=10000));
             let fakeuuid = Uuid::from_u128(0); // expect the server to generate a UUID
             let uname_len:u16 = u16::try_from(fakeuser.chars().count()).unwrap();
+
+            self.username = String::from(&fakeuser);
+            self.user_uuid = fakeuuid;
+
+            let mut message: Vec<u8> = Vec::new();
             message.push(MessageType::JOIN);
             message.extend(uname_len.to_le_bytes());
             message.extend(fakeuuid.to_bytes_le());
@@ -208,6 +231,20 @@ impl App {
             // TODO: Add an 'ack' type message?
             self.joined = true;
         }
+    }
+
+    pub fn leave_user(&mut self){
+        info!("processing LEAVE request");
+        self.joined = false;
+        self.connected = false;
+        self.active_users.get_mut(&self.user_uuid).unwrap().status = UserStatusType::OFFLINE;
+        let mut message: Vec<u8> = Vec::new();
+        message.push(MessageType::LEAVE);
+        self.tcpstream.write_all(&message).map_err(|err| {
+            error!("Couild not send the LEAVE message to the server. Err: {}", err);
+        }).ok();
+        self.tcpstream.flush().ok();
+        info!("LEAVE message sent");
     }
 
     pub fn get_users(&mut self){
@@ -368,6 +405,7 @@ impl App {
                         eu.set_status(status_code);
                         eu.set_displayname(username);
                         if desclen > 0 { eu.set_description(description); }
+                        if eu.displayname == self.username {self.user_uuid = eu.uuid}
                     },
                     // create new user
                     None => {

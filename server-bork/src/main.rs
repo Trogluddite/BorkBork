@@ -227,6 +227,10 @@ fn handle_client(
     loop{
         reader.read_exact(&mut message_type).map_err(|err| {
             error!("couldn't receive message; assuming client disconnect. Error was: {}", err);
+            let mut state_guard = server_state.lock().unwrap();
+            let user_map_ref = &mut state_guard.user_map;
+            let mut u:&mut User = user_map_ref.get_mut(&client_uuid).unwrap();
+            u.status = UserStatusType::OFFLINE;
             stream.as_ref().shutdown(Shutdown::Both);
             isalive = false;
         });
@@ -297,7 +301,7 @@ fn handle_client(
                     let userstatus = Message::UserStatus {
                         author: stream.clone(),
                         message_type: MessageType::USERSTATUS,
-                        user_id: u.uuid, 
+                        user_id: u.uuid,
                         status_type: u.status,
                         name_len: u16::try_from(u.displayname.len()).expect("displayname.len() could not be cast to u16"),
                         desc_len: u16::try_from(u.description.len()).expect("disolayname.len() could not be cast to u16"),
