@@ -52,11 +52,13 @@ impl User{
 }
 struct ServerState{
     user_map: BTreeMap<Uuid, User>,
+    conns: BTreeMap<String, Arc<TcpStream> >,
 }
 impl ServerState{
     fn new() -> ServerState{
         ServerState{
             user_map: BTreeMap::new(),
+            conns: BTreeMap::new(),
         }
     }
     fn add_user(&mut self, user: &mut User){
@@ -94,6 +96,10 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn handle_broadcast_message(){
+    //fixme
 }
 
 fn handle_mspc_thread_messages(reciever: Arc<Mutex<Receiver<Message>>>) -> Result<()> {
@@ -185,6 +191,10 @@ fn handle_client(
     }
     else {
         info!("new connection from {:?}", stream.peer_addr().unwrap());
+        server_state.lock().unwrap().conns.insert(
+            stream.peer_addr().unwrap().to_string().clone(),
+            stream.clone()
+        );
     }
 
     /****< Connection preamble: send sever version & welcome to each client>***/
@@ -210,6 +220,7 @@ fn handle_client(
     /*********************</connection preamble>******************************/
 
     let mut isalive = true;
+    let mut client_uuid = Uuid::from_u128(0);
     let mut reader = BufReader::new(stream.as_ref());
     let mut message_type = [0u8];
     let mut bufr:Vec<u8> = Vec::new();
@@ -260,6 +271,7 @@ fn handle_client(
                         }
                     }
                 };
+                client_uuid = u.uuid;
                 let userstatus = Message::UserStatus {
                     author: stream.clone(),
                     message_type: MessageType::USERSTATUS,
@@ -273,6 +285,29 @@ fn handle_client(
                 message.send(userstatus).map_err(|err|{
                     error!("couldn't send USERSTATUS message to MPSC sender. Err was {}",err);
                 })?;
+            }
+            MessageType::LEAVE => {
+                info!("recieved LEAVE message from {}", stream.peer_addr().unwrap());
+                // uuid = 0 means we haven't joined yet
+                if client_uuid != Uuid::from_u128(0) {
+                    let mut state_guard = server_state.lock().unwrap();
+                    let user_map_ref = &mut state_guard.user_map;
+                    let mut u:&mut User = user_map_ref.get_mut(&client_uuid).unwrap();
+                    u.status = UserStatusType::OFFLINE;
+                    let userstatus = Message::UserStatus {
+                        author: stream.clone(),
+                        message_type: MessageType::USERSTATUS,
+                        user_id: u.uuid, 
+                        status_type: u.status,
+                        name_len: u16::try_from(u.displayname.len()).expect("displayname.len() could not be cast to u16"),
+                        desc_len: u16::try_from(u.description.len()).expect("disolayname.len() could not be cast to u16"),
+                        username: u.displayname.as_bytes().to_vec(),
+                        desc: u.description.as_bytes().to_vec(),
+                    };
+                    message.send(userstatus).map_err(|err|{
+                        error!("Couldn't send USERSTATUS message following LEAVE messsage. Err was {}", err);
+                    })?;
+                }
             }
             MessageType::GETUSERS => {
                 info!("received GETUSERS message from {}", stream.peer_addr().unwrap());
