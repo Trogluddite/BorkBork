@@ -67,7 +67,7 @@ impl ServerState{
 }
 
 fn main() -> Result<()> {
-    let _ = simple_logging::log_to_file("./server.log", LevelFilter::Debug);
+    let _ = simple_logging::log_to_file("./server.log", LevelFilter::Error);
     let address = format!("{}:{}", SERVER_ADDRESS, SERVER_PORT);
     let listener = TcpListener::bind(&address).map_err(|_err| {
         error!("could not bind to address {address}");
@@ -202,8 +202,8 @@ fn handle_client(
         author: stream.clone(),
         message_type: MessageType::VERSION,
         major_rev: 0,
-        minor_rev: 2,
-        subminor_rev: 0,
+        minor_rev: 3,
+        subminor_rev: 6,
     };
     message.send(server_version).map_err(|err| {
         error!("couldn't send version message to client. Err was: {}", err);
