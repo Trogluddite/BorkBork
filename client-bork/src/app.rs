@@ -266,7 +266,11 @@ impl App {
     // to poll for updates?
     pub fn update_user_statuses(&mut self){
         info!("triggerred update_user_statuses; update pending list is: {:?}", self.uuid_update_pending);
-        for u in self.uuid_update_pending.iter() {
+        loop {
+            let u = match self.uuid_update_pending.pop() {
+                Some(u) => u,
+                None => return
+            };
             let mut message: Vec<u8> = Vec::new();
             message.push(MessageType::GETUSERSTATUS);
             message.extend(u.to_bytes_le());

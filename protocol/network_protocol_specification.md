@@ -131,6 +131,7 @@ Sent by the client to the server, to request a list of users
 
 ### USERLIST
 Sent by the server. Gets a list of UUIDs of all current users.
+Excludes any users the server may know about, in an OFFLINE or NOSUCHUSER state.
 UUIDs
 | Byte | Meaning | datatype hint |
 | ------ | ------------------------------ | ----------------- |
