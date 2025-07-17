@@ -191,10 +191,10 @@ fn handle_client(
     }
     else {
         info!("new connection from {:?}", stream.peer_addr().unwrap());
-        server_state.lock().unwrap().conns.insert(
-            stream.peer_addr().unwrap().to_string().clone(),
-            stream.clone()
-        );
+        //server_state.lock().unwrap().conns.insert(
+        //    stream.peer_addr().unwrap().to_string().clone(),
+        //    stream.clone()
+        //);
     }
 
     /****< Connection preamble: send sever version & welcome to each client>***/
