@@ -220,7 +220,8 @@ fn handle_client(
     /*********************</connection preamble>******************************/
 
     let mut isalive = true;
-    let mut client_uuid = Uuid::from_u128(0);
+    let mut isjoined = false; // tcp stream may be connected without client being joined
+    let mut client_uuid = Uuid::from_u128(0); //fixme: should be wrapped in Option
     let mut reader = BufReader::new(stream.as_ref());
     let mut message_type = [0u8];
     let mut bufr:Vec<u8> = Vec::new();
@@ -229,8 +230,10 @@ fn handle_client(
             error!("couldn't receive message; assuming client disconnect. Error was: {}", err);
             let mut state_guard = server_state.lock().unwrap();
             let user_map_ref = &mut state_guard.user_map;
-            let mut u:&mut User = user_map_ref.get_mut(&client_uuid).unwrap();
-            u.status = UserStatusType::OFFLINE;
+            match user_map_ref.get_mut(&client_uuid) {
+                Some(u) => u.status = UserStatusType::OFFLINE,
+                None => ()
+            }
             stream.as_ref().shutdown(Shutdown::Both);
             isalive = false;
         });
@@ -238,6 +241,10 @@ fn handle_client(
 
         match message_type[0]{
             MessageType::JOIN => {
+                if isjoined {
+                    info!("client already joined; nothing to do");
+                    break;
+                }
                 info!("received JOIN message from {}", stream.peer_addr().unwrap());
                 let mut len_buf = [0u8;2];
                 match reader.read_exact(&mut len_buf[..]){
@@ -276,6 +283,7 @@ fn handle_client(
                     }
                 };
                 client_uuid = u.uuid;
+                isjoined = true;
                 let userstatus = Message::UserStatus {
                     author: stream.clone(),
                     message_type: MessageType::USERSTATUS,
@@ -292,12 +300,17 @@ fn handle_client(
             }
             MessageType::LEAVE => {
                 info!("recieved LEAVE message from {}", stream.peer_addr().unwrap());
+                if !isjoined{
+                    info!("no user joined in current TCPStream; nothing to do");
+                    break;
+                }
                 // uuid = 0 means we haven't joined yet
                 if client_uuid != Uuid::from_u128(0) {
                     let mut state_guard = server_state.lock().unwrap();
                     let user_map_ref = &mut state_guard.user_map;
                     let mut u:&mut User = user_map_ref.get_mut(&client_uuid).unwrap();
                     u.status = UserStatusType::OFFLINE;
+                    isjoined = false;
                     let userstatus = Message::UserStatus {
                         author: stream.clone(),
                         message_type: MessageType::USERSTATUS,
@@ -315,6 +328,10 @@ fn handle_client(
             }
             MessageType::GETUSERS => {
                 info!("received GETUSERS message from {}", stream.peer_addr().unwrap());
+                if !isjoined{
+                    info!("no user joined in current TCPSTream; nothing to do");
+                    break;
+                }
                 let mut uuid_list: Vec<Uuid> = Vec::new();
                 for (uuid, user) in server_state.lock().unwrap().user_map.iter(){
                     if user.status != UserStatusType::OFFLINE && user.status != UserStatusType::NOSUCHUSER {
@@ -332,6 +349,10 @@ fn handle_client(
             }
             MessageType::GETUSERSTATUS => {
                 info!("recieved GETUSERSTATUS message from {}", stream.peer_addr().unwrap());
+                if !isjoined{
+                    info!("No user joined in current TCPStream; nothing to do");
+                    break;
+                }
                 let mut uuid_buf = [0u8;16];
                 match reader.read_exact(&mut uuid_buf[..]) {
                     Err(e) => error!("could not read 16 bytes for UUID from GETUSERSTATUS message with Err: {}", e),
