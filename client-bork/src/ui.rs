@@ -10,7 +10,7 @@ use ratatui::{
 
 use::common_bork::UserStatusType;
 
-use crate::app::App;
+use crate::app::{App, ModeID};
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -71,7 +71,17 @@ impl Widget for &App {
             .border_set(border::EMPTY);
         let recv_messages_text = Paragraph::new(String::from(str::from_utf8(&self.inbuffer).unwrap()))
             .block(recv_messages_block);
-         let users_block = Block::bordered()
+        let mut send_messages_text = Paragraph::new(String::from(""))
+            .block(send_message_block);
+        match self.mode {
+            ModeID::MESSAGE => {
+                let dummytext:String = String::from("this is a pretendsies messages");
+                send_messages_text = Paragraph::new(format!(" {} > {}", self.username, dummytext))
+                    .block(send_message_block);
+            },
+            _ => ()
+        }
+        let users_block = Block::bordered()
             .title(users_title.centered())
             .border_set(border::ROUNDED);
         let users_str = self.active_users.values()
@@ -82,7 +92,7 @@ impl Widget for &App {
         let users_text = Paragraph::new(users_str)
             .block(users_block);
         recv_messages_text.render(chat_inner_layout[0], buf);
-        send_message_block.render(chat_inner_layout[1], buf);
+        send_messages_text.render(chat_inner_layout[1], buf);
         chat_block.render(inner_layout[0], buf);
         users_text.render(inner_layout[1], buf);
     }

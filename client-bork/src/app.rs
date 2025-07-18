@@ -18,8 +18,8 @@ use::common_bork::{MessageType, UserStatusType};
 
 
 const SERVER_PORT: u16 = 6556;
-const SERVER_ADDRESS:&'static str = "164.90.146.27";
-//const SERVER_ADDRESS: &'static str = "0.0.0.0";
+//const SERVER_ADDRESS:&'static str = "164.90.146.27";
+const SERVER_ADDRESS: &'static str = "0.0.0.0";
 
 
 // TODO: should be part of common?
@@ -51,6 +51,19 @@ impl User{
     }
 }
 
+// Basic UI mode tracking --
+// for now, we're either in 'control' mode (connect, disconnect, etc)
+// or 'message' mode, sending a message to the server
+#[derive(Debug)]
+pub struct ModeID{
+    pub control: u8,
+    pub message: u8,
+}
+impl ModeID{
+    pub const CONTROL:  u8 = 0;
+    pub const MESSAGE:  u8 = 0;
+}
+
 /// Application.
 #[derive(Debug)]
 pub struct App {
@@ -60,6 +73,7 @@ pub struct App {
     pub events:             EventHandler,
     pub inbuffer:           Vec<u8>,   //TODO: should be a list of rows to use as message buffer
     pub joined:             bool,       // TODO: probably want a modal object (e.g. online,dnd, etc)
+    pub mode:               u8,
     pub running:            bool,
     pub server_port:        u16,
     pub server_address:     String,
@@ -80,6 +94,7 @@ impl Default for App {
             events: EventHandler::new(),
             inbuffer: Vec::new(),
             joined: false,
+            mode:   ModeID::CONTROL,
             running: true,
             server_port: 0,
             server_address: String::new(),
