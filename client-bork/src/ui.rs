@@ -71,16 +71,19 @@ impl Widget for &App {
             .border_set(border::EMPTY);
         let recv_messages_text = Paragraph::new(String::from(str::from_utf8(&self.inbuffer).unwrap()))
             .block(recv_messages_block);
-        let mut send_messages_text = Paragraph::new(String::from(""))
-            .block(send_message_block);
-        match self.mode {
+        let send_messages_text = match self.mode {
             ModeID::MESSAGE => {
                 let dummytext:String = String::from("this is a pretendsies messages");
-                send_messages_text = Paragraph::new(format!(" {} > {}", self.username, dummytext))
+                let s = Paragraph::new(format!(" {}> {}", self.username, dummytext))
                     .block(send_message_block);
+                s
             },
-            _ => ()
-        }
+            _ => {
+                let s = Paragraph::new(String::from(""))
+                    .block(send_message_block);
+                s
+            }
+        };
         let users_block = Block::bordered()
             .title(users_title.centered())
             .border_set(border::ROUNDED);

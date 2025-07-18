@@ -21,6 +21,7 @@ pub enum Event {
 
 #[derive(Clone, Debug)]
 pub enum AppEvent {
+    ChangeMode,
     ConnectServer,
     DisconnectServer,
     GetUsers,

@@ -18,8 +18,8 @@ use::common_bork::{MessageType, UserStatusType};
 
 
 const SERVER_PORT: u16 = 6556;
-//const SERVER_ADDRESS:&'static str = "164.90.146.27";
-const SERVER_ADDRESS: &'static str = "0.0.0.0";
+const SERVER_ADDRESS:&'static str = "164.90.146.27";
+//const SERVER_ADDRESS: &'static str = "0.0.0.0";
 
 
 // TODO: should be part of common?
@@ -61,7 +61,7 @@ pub struct ModeID{
 }
 impl ModeID{
     pub const CONTROL:  u8 = 0;
-    pub const MESSAGE:  u8 = 0;
+    pub const MESSAGE:  u8 = 1;
 }
 
 /// Application.
@@ -134,6 +134,7 @@ impl App {
                     AppEvent::JoinUser => self.join_user(),
                     AppEvent::Quit => self.quit(),
                     AppEvent::UpdateUsers => self.update_user_statuses(),
+                    AppEvent::ChangeMode => self.change_mode(),
                 },
             }
         }
@@ -150,6 +151,7 @@ impl App {
             KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
             KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
             KeyCode::Char('l' | 'L') => self.events.send(AppEvent::LeaveUser),
+            KeyCode::Tab => self.events.send(AppEvent::ChangeMode),
             _ => {}
         }
         Ok(())
@@ -189,6 +191,17 @@ impl App {
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
+    }
+
+    pub fn change_mode(&mut self){
+        // todo: modes should probably just be a modulo ring
+        // that user can tab through?
+        if self.mode == ModeID::CONTROL{
+            self.mode = ModeID::MESSAGE;
+        }
+        else{
+            self.mode = ModeID::CONTROL;
+        }
     }
 
     pub fn connect_to_server(&mut self, ip: &str, port: u16) {
