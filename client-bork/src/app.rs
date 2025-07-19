@@ -4,6 +4,7 @@ use std::{
     io::{Read, Write},
     net::{Shutdown, TcpStream},
     time::Duration,
+    u8,
 };
 use crate::event::{AppEvent, Event, EventHandler};
 use log::{error, info};
@@ -74,6 +75,7 @@ pub struct App {
     pub inbuffer:           Vec<u8>,   //TODO: should be a list of rows to use as message buffer
     pub joined:             bool,       // TODO: probably want a modal object (e.g. online,dnd, etc)
     pub mode:               u8,
+    pub outgoing_charbuff:  Vec<u8>,
     pub running:            bool,
     pub server_port:        u16,
     pub server_address:     String,
@@ -95,6 +97,7 @@ impl Default for App {
             inbuffer: Vec::new(),
             joined: false,
             mode:   ModeID::CONTROL,
+            outgoing_charbuff: Vec::new(),
             running: true,
             server_port: 0,
             server_address: String::new(),
@@ -127,14 +130,15 @@ impl App {
                     _ => {}
                 },
                 Event::App(app_event) => match app_event {
+                    AppEvent::ChangeMode => self.change_mode(),
                     AppEvent::ConnectServer => self.connect_to_server(SERVER_ADDRESS, SERVER_PORT),
                     AppEvent::DisconnectServer => self.disconnect_server(),
                     AppEvent::GetUsers => self.get_users(),
-                    AppEvent::LeaveUser => self.leave_user(),
                     AppEvent::JoinUser => self.join_user(),
+                    AppEvent::LeaveUser => self.leave_user(),
                     AppEvent::Quit => self.quit(),
+                    AppEvent::SendMessage => self.send_message(),
                     AppEvent::UpdateUsers => self.update_user_statuses(),
-                    AppEvent::ChangeMode => self.change_mode(),
                 },
             }
         }
@@ -143,15 +147,39 @@ impl App {
 
     /// Handles the key events and updates the state of [`App`].
     pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
-        match key_event.code {
-            KeyCode::Esc | KeyCode::Char('q') => self.events.send(AppEvent::Quit),
-            KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
-                self.events.send(AppEvent::Quit)
-            }
-            KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
-            KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
-            KeyCode::Char('l' | 'L') => self.events.send(AppEvent::LeaveUser),
-            KeyCode::Tab => self.events.send(AppEvent::ChangeMode),
+        match self.mode {
+            ModeID::CONTROL => {
+                match key_event.code {
+                    KeyCode::Esc | KeyCode::Char('q') => self.events.send(AppEvent::Quit),
+                    KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        self.events.send(AppEvent::Quit)
+                    }
+                    KeyCode::Char('c' | 'C') => self.events.send(AppEvent::ConnectServer),
+                    KeyCode::Char('d' | 'D') => self.events.send(AppEvent::DisconnectServer),
+                    KeyCode::Char('l' | 'L') => self.events.send(AppEvent::LeaveUser),
+                    KeyCode::Tab => self.events.send(AppEvent::ChangeMode),
+                    _ => {}
+                }
+            },
+            ModeID::MESSAGE => {
+                match key_event.code{
+                    KeyCode::Enter => self.events.send(AppEvent::SendMessage),
+                    KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        self.events.send(AppEvent::Quit)
+                    }
+                    KeyCode::Tab => self.events.send(AppEvent::ChangeMode),
+                    KeyCode::Char(c) => self.outgoing_charbuff.push(
+                        match u8::try_from(c) {
+                            Ok(c) => c,
+                            _ =>  {
+                                error!("couldn't convert {} to u8, inserting substitute",c);
+                                26 as u8 //ascii substitute character
+                            },
+                        }),
+                    KeyCode::Backspace => {let _ = self.outgoing_charbuff.pop();},
+                    _ => {}
+                }
+            },
             _ => {}
         }
         Ok(())
@@ -202,6 +230,17 @@ impl App {
         else{
             self.mode = ModeID::CONTROL;
         }
+    }
+
+    pub fn send_message(&mut self){
+        let mut sendme : Vec<u8> = Vec::new();
+        sendme.push('<' as u8);
+        sendme.append(&mut self.username.as_bytes().to_vec());
+        sendme.append(&mut String::from(">: ").as_bytes().to_vec());
+        sendme.append(&mut self.outgoing_charbuff);
+        sendme.push('\n' as u8);
+        self.inbuffer.append(&mut sendme);
+        self.outgoing_charbuff.drain(..);
     }
 
     pub fn connect_to_server(&mut self, ip: &str, port: u16) {

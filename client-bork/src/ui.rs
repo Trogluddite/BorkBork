@@ -73,8 +73,8 @@ impl Widget for &App {
             .block(recv_messages_block);
         let send_messages_text = match self.mode {
             ModeID::MESSAGE => {
-                let dummytext:String = String::from("this is a pretendsies messages");
-                let s = Paragraph::new(format!(" {}> {}", self.username, dummytext))
+                let outgoing_msg = String::from(str::from_utf8(&self.outgoing_charbuff).unwrap());
+                let s = Paragraph::new(format!(" {}> {}", self.username, outgoing_msg))
                     .block(send_message_block);
                 s
             },

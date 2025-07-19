@@ -28,6 +28,7 @@ pub enum AppEvent {
     LeaveUser,
     JoinUser,
     Quit,
+    SendMessage,
     UpdateUsers,
 }
 
